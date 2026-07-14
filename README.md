@@ -1,7 +1,7 @@
 # Regimens
 
 Inventory Management System for Outstretched Arm Enterprise
-Built by **Team StoreSync** — COE 454 (Software Engineering), KNUST Department of Computer Engineering
+Built by **Team Regimens** — COE 454 (Software Engineering), KNUST Department of Computer Engineering
 
 ## What is this?
 
