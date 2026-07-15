@@ -1,7 +1,7 @@
 # Regimens
 
 Inventory Management System for Outstretched Arm Enterprise
-Built by **Team Regimens** — COE 454 (Software Engineering), KNUST Department of Computer Engineering
+Built by **Team StoreSync** — COE 454 (Software Engineering), KNUST Department of Computer Engineering
 
 ## What is this?
 
@@ -41,8 +41,47 @@ See `docs/Architecture_Decision_Records.docx` for the reasoning behind each choi
 
 ## Local Setup
 
-> Scaffold code for `backend/` and `frontend/` is coming next — this section will be filled in with
-> exact install and run steps once that's pushed.
+You'll run three things: the database migrations, the backend, and the frontend. Open a
+terminal for each of the last two (they need to stay running).
+
+### 1. Database
+
+```
+cd database
+cp .env.example .env
+npm install
+npm run migrate
+npm run seed        # optional, but recommended for local dev — creates a demo login
+```
+
+This creates a demo account: `username: owner`, `password: owner1234`, plus 5 sample
+products.
+
+### 2. Backend
+
+```
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Confirm it's up: `curl http://localhost:4000/api/health` should return `{"status":"ok"}`.
+
+### 3. Frontend
+
+```
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Open the URL it prints (typically `http://localhost:5173`) and log in with the demo
+account above.
+
+Each folder's own README has more detail — see `backend/README.md`, `database/README.md`,
+and `frontend/README.md`.
 
 ## Team
 

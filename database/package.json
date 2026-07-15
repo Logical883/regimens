@@ -1,0 +1,15 @@
+{
+  "name": "regimens-database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Migrations and seed data for the Regimens PostgreSQL database.",
+  "scripts": {
+    "migrate": "node migrate.js",
+    "seed": "node seeds/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "pg": "^8.11.5"
+  }
+}
