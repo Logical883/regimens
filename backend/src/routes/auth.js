@@ -3,7 +3,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const pool = require("../db");
+const data = require("../data");
 const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -16,8 +16,7 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
-    const user = result.rows[0];
+    const user = await data.findUserByUsername(username);
 
     if (!user) {
       return res.status(401).json({ message: "Invalid username or password" });
@@ -49,14 +48,11 @@ router.post("/logout", requireAuth, (req, res) => {
 // GET /api/auth/me
 router.get("/me", requireAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT id, name, username, role FROM users WHERE id = $1",
-      [req.user.id]
-    );
-    if (result.rows.length === 0) {
+    const user = await data.findUserById(req.user.id);
+    if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.json(result.rows[0]);
+    res.json(user);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Something went wrong" });
