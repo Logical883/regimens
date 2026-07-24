@@ -12,6 +12,7 @@ import ConfirmSale from "./pages/ConfirmSale";
 import SaleSuccess from "./pages/SaleSuccess";
 import ProductManagement from "./pages/ProductManagement";
 import Categories from "./pages/Categories";
+import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
 import Backup from "./pages/Backup";
 import { flushPendingSales } from "./offline/sync";
@@ -33,6 +34,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
               <Route path="/sale/new" element={<ProtectedRoute><NewSale /></ProtectedRoute>} />
               <Route path="/sale/confirm" element={<ProtectedRoute><ConfirmSale /></ProtectedRoute>} />
               <Route path="/sale/success" element={<ProtectedRoute><SaleSuccess /></ProtectedRoute>} />

@@ -24,6 +24,7 @@ const PAGE_SIZE = 8;
 const emptyForm = {
   name: "",
   sku: "",
+  category: "",
   quantity: 0,
   unit_price: 0,
   min_stock_level: 5,
@@ -144,7 +145,10 @@ export default function ProductManagement() {
 
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      category: categories[0]?.name || "",
+    });
     setShowForm(true);
   }
 
@@ -153,6 +157,7 @@ export default function ProductManagement() {
     setForm({
       name: p.name || "",
       sku: p.sku || "",
+      category: p.category || categorizeProduct(p, categories),
       quantity: p.quantity ?? 0,
       unit_price: p.unit_price ?? 0,
       min_stock_level: p.min_stock_level ?? 5,
@@ -166,11 +171,16 @@ export default function ProductManagement() {
       setError("Product name is required.");
       return;
     }
+    if (!form.category.trim()) {
+      setError("Category is required.");
+      return;
+    }
     setSaving(true);
     setError("");
     const payload = {
       name: form.name.trim(),
       sku: form.sku.trim() || undefined,
+      category: form.category.trim(),
       quantity: Number(form.quantity) || 0,
       unit_price: Number(form.unit_price) || 0,
       min_stock_level: Number(form.min_stock_level) || 0,
@@ -268,11 +278,7 @@ export default function ProductManagement() {
         </div>
 
         <div className="inv-actions">
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => exportCsv(filtered, categories)}
-          >
+          <button type="button" className="btn btn--ghost" onClick={() => exportCsv(filtered, categories)}>
             <Download size={16} strokeWidth={1.75} />
             Export CSV
           </button>
@@ -396,20 +402,13 @@ export default function ProductManagement() {
           <form className="inv-modal__panel" onSubmit={handleSubmit}>
             <div className="inv-modal__head">
               <h2>{editingId ? "Edit item" : "Add item"}</h2>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setShowForm(false)}
-                aria-label="Close"
-              >
+              <button type="button" className="icon-btn" onClick={() => setShowForm(false)} aria-label="Close">
                 <X size={18} />
               </button>
             </div>
             <div className="form-grid">
               <div className="field field--full">
-                <label className="label" htmlFor="name">
-                  Name
-                </label>
+                <label className="label" htmlFor="name">Name</label>
                 <div className="input">
                   <input
                     id="name"
@@ -419,10 +418,9 @@ export default function ProductManagement() {
                   />
                 </div>
               </div>
+
               <div className="field">
-                <label className="label" htmlFor="sku">
-                  SKU
-                </label>
+                <label className="label" htmlFor="sku">SKU</label>
                 <div className="input">
                   <input
                     id="sku"
@@ -431,10 +429,36 @@ export default function ProductManagement() {
                   />
                 </div>
               </div>
+
               <div className="field">
-                <label className="label" htmlFor="quantity">
-                  Stock
-                </label>
+                <label className="label" htmlFor="category">Category</label>
+                <div className="input">
+                  <select
+                    id="category"
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    required
+                    style={{
+                      width: "100%",
+                      border: 0,
+                      outline: 0,
+                      background: "transparent",
+                      font: "inherit",
+                      color: "inherit",
+                    }}
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="label" htmlFor="quantity">Stock</label>
                 <div className="input">
                   <input
                     id="quantity"
@@ -444,10 +468,9 @@ export default function ProductManagement() {
                   />
                 </div>
               </div>
+
               <div className="field">
-                <label className="label" htmlFor="unit_price">
-                  Unit cost (GHS)
-                </label>
+                <label className="label" htmlFor="unit_price">Unit cost (GHS)</label>
                 <div className="input">
                   <input
                     id="unit_price"
@@ -458,10 +481,9 @@ export default function ProductManagement() {
                   />
                 </div>
               </div>
+
               <div className="field">
-                <label className="label" htmlFor="min_stock_level">
-                  Min stock
-                </label>
+                <label className="label" htmlFor="min_stock_level">Min stock</label>
                 <div className="input">
                   <input
                     id="min_stock_level"

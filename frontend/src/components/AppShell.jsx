@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Bell,
   Box,
   ChartColumn,
+  Clock3,
   DatabaseBackup,
   LayoutDashboard,
   LogOut,
@@ -12,17 +13,20 @@ import {
   Search,
   ShoppingCart,
   Tag,
+  TriangleAlert,
   X,
 } from "lucide-react";
+import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { initials } from "../utils/inventoryMetrics";
+import { pendingSalesCount } from "../offline/sync";
+import { initials, productStatus } from "../utils/inventoryMetrics";
 import "../styles/shell.css";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/products", label: "Inventory", icon: Package },
   { to: "/categories", label: "Categories", icon: Tag },
-  { to: "/sale/new", label: "Orders", icon: ShoppingCart, badgeKey: "orders" },
+  { to: "/orders", label: "Orders", icon: ShoppingCart, badgeKey: "orders" },
   { to: "/reports", label: "Reports", icon: ChartColumn },
   { to: "/backup", label: "Backup", icon: DatabaseBackup, ownerOnly: true },
 ];
@@ -33,16 +37,99 @@ export default function AppShell({
   searchPlaceholder = "Search items, SKU, category...",
   onSearch,
   searchValue = "",
-  notificationCount = 0,
+  notificationCount,
   orderBadge = 0,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAlerts() {
+      try {
+        const [{ data }, pending] = await Promise.all([
+          api.get("/products"),
+          pendingSalesCount(),
+        ]);
+        if (!active) return;
+        setProducts(Array.isArray(data) ? data : []);
+        setPendingCount(pending || 0);
+      } catch {
+        if (!active) return;
+        try {
+          const pending = await pendingSalesCount();
+          setPendingCount(pending || 0);
+        } catch {
+          setPendingCount(0);
+        }
+      }
+    }
+
+    loadAlerts();
+    const timer = setInterval(loadAlerts, 15000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const alerts = useMemo(() => {
+    const list = [];
+
+    for (const product of products) {
+      const status = productStatus(product);
+      if (status === "out") {
+        list.push({
+          id: `out-${product.id}`,
+          type: "out",
+          title: "Out of stock",
+          detail: `${product.name}${product.sku ? ` (${product.sku})` : ""} has 0 units left.`,
+          href: "/products",
+        });
+      } else if (status === "low") {
+        list.push({
+          id: `low-${product.id}`,
+          type: "low",
+          title: "Low stock",
+          detail: `${product.name} has ${product.quantity} left (min ${product.min_stock_level}).`,
+          href: "/orders",
+        });
+      }
+    }
+
+    if (pendingCount > 0) {
+      list.unshift({
+        id: "pending-sync",
+        type: "pending",
+        title: "Pending sync",
+        detail: `${pendingCount} sale${pendingCount === 1 ? "" : "s"} waiting to sync.`,
+        href: "/orders",
+      });
+    }
+
+    return list;
+  }, [products, pendingCount]);
+
+  const badgeCount =
+    typeof notificationCount === "number" && notificationCount > 0
+      ? notificationCount
+      : alerts.length;
+
+  const displayOrderBadge = orderBadge > 0 ? orderBadge : pendingCount;
 
   function handleLogout() {
     logout();
     navigate("/login");
+  }
+
+  function openAlert(alert) {
+    setNotifyOpen(false);
+    navigate(alert.href);
   }
 
   return (
@@ -84,8 +171,8 @@ export default function AppShell({
               >
                 <Icon size={18} strokeWidth={1.75} />
                 <span>{item.label}</span>
-                {item.badgeKey === "orders" && orderBadge > 0 && (
-                  <span className="shell__badge">{orderBadge}</span>
+                {item.badgeKey === "orders" && displayOrderBadge > 0 && (
+                  <span className="shell__badge">{displayOrderBadge}</span>
                 )}
               </NavLink>
             );
@@ -120,16 +207,82 @@ export default function AppShell({
             />
           </label>
 
-          <button className="shell__notify" type="button" aria-label="Notifications">
+          <button
+            className="shell__notify"
+            type="button"
+            aria-label="Open notifications"
+            aria-expanded={notifyOpen}
+            onClick={() => setNotifyOpen(true)}
+          >
             <Bell size={20} strokeWidth={1.75} />
-            {notificationCount > 0 && (
-              <span className="shell__badge shell__badge--float">{notificationCount}</span>
+            {badgeCount > 0 && (
+              <span className="shell__badge shell__badge--float">{badgeCount}</span>
             )}
           </button>
         </header>
 
         <div className="shell__content">{children}</div>
       </div>
+
+      {notifyOpen && (
+        <button
+          className="notify-backdrop"
+          type="button"
+          aria-label="Close notifications"
+          onClick={() => setNotifyOpen(false)}
+        />
+      )}
+
+      <aside className={`notify-drawer ${notifyOpen ? "is-open" : ""}`} aria-hidden={!notifyOpen}>
+        <header className="notify-drawer__head">
+          <div>
+            <h2>Notifications</h2>
+            <p className="muted">
+              {alerts.length === 0
+                ? "You're all caught up"
+                : `${alerts.length} alert${alerts.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Close notifications"
+            onClick={() => setNotifyOpen(false)}
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="notify-drawer__body">
+          {alerts.length === 0 && (
+            <div className="notify-empty">
+              <Bell size={22} strokeWidth={1.75} />
+              <p>No stock or sync alerts right now.</p>
+            </div>
+          )}
+
+          {alerts.map((alert) => (
+            <button
+              key={alert.id}
+              type="button"
+              className={`notify-item notify-item--${alert.type}`}
+              onClick={() => openAlert(alert)}
+            >
+              <span className="notify-item__icon" aria-hidden="true">
+                {alert.type === "pending" ? (
+                  <Clock3 size={16} strokeWidth={1.75} />
+                ) : (
+                  <TriangleAlert size={16} strokeWidth={1.75} />
+                )}
+              </span>
+              <span className="notify-item__copy">
+                <strong>{alert.title}</strong>
+                <span>{alert.detail}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </aside>
     </div>
   );
 }

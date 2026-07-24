@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   ChartNoAxesColumn,
-  Package,
   Tag,
   TriangleAlert,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import {
 } from "recharts";
 import api from "../api/client";
 import AppShell from "../components/AppShell";
+import { useCategories } from "../context/CategoryContext";
 import {
   buildInventoryMetrics,
   formatCedi,
@@ -37,6 +37,7 @@ const PIE_COLORS = [
 ];
 
 export default function Dashboard() {
+  const { categories } = useCategories();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -59,7 +60,10 @@ export default function Dashboard() {
     );
   }, [products, search]);
 
-  const metrics = useMemo(() => buildInventoryMetrics(filtered), [filtered]);
+  const metrics = useMemo(
+    () => buildInventoryMetrics(filtered, categories),
+    [filtered, categories]
+  );
   const notificationCount = metrics.lowCount + metrics.outCount;
 
   return (
