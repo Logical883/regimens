@@ -106,15 +106,32 @@ export function CategoryProvider({ children }) {
     return category;
   }
 
-  function updateCategory(id, updates) {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates, name: (updates.name || c.name).trim() } : c))
-    );
-  }
+function updateCategory(id, { name, description = "", keywords = "" }) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Category name is required.");
+  const exists = categories.some(
+    (c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exists) throw new Error("A category with that name already exists.");
+  setCategories((prev) =>
+    prev
+      .map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              name: trimmed,
+              description: description.trim(),
+              keywords: keywords.trim(),
+            }
+          : c
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
+}
 
-  function deleteCategory(id) {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-  }
+function deleteCategory(id) {
+  setCategories((prev) => prev.filter((c) => c.id !== id));
+}
 
   const value = useMemo(
     () => ({ categories, addCategory, updateCategory, deleteCategory }),

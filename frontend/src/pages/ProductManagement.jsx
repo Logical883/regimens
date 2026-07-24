@@ -14,6 +14,11 @@ import api from "../api/client";
 import AppShell from "../components/AppShell";
 import { useCategories } from "../context/CategoryContext";
 import {
+  getProductCost,
+  setProductCost,
+  removeProductCost,
+} from "../utils/productCosts";
+import {
   buildInventoryMetrics,
   categorizeProduct,
   formatCedi,
@@ -27,22 +32,34 @@ const emptyForm = {
   category: "",
   quantity: 0,
   unit_price: 0,
+  cost_price: 0,
   min_stock_level: 5,
 };
 
 function exportCsv(rows, categoryList) {
-  const header = ["name", "sku", "category", "stock", "unit", "unit_cost", "total_value"];
+  const header = [
+    "name",
+    "sku",
+    "category",
+    "stock",
+    "unit",
+    "sell_price",
+    "cost_price",
+    "total_value",
+  ];
   const lines = rows.map((p) => {
     const qty = Number(p.quantity) || 0;
-    const unit = Number(p.unit_price) || 0;
+    const sell = Number(p.unit_price) || 0;
+    const cost = getProductCost(p);
     return [
       `"${(p.name || "").replaceAll('"', '""')}"`,
       p.sku || "",
       p.category || categorizeProduct(p, categoryList),
       qty,
       "pcs",
-      unit.toFixed(2),
-      (qty * unit).toFixed(2),
+      sell.toFixed(2),
+      cost.toFixed(2),
+      (qty * sell).toFixed(2),
     ].join(",");
   });
   const blob = new Blob([[header.join(","), ...lines].join("\n")], {
@@ -91,6 +108,7 @@ export default function ProductManagement() {
         ...p,
         category: categorizeProduct(p, categories),
         status: productStatus(p),
+        cost_price: getProductCost(p),
         totalValue: (Number(p.quantity) || 0) * (Number(p.unit_price) || 0),
       })),
     [products, categories]
@@ -127,7 +145,10 @@ export default function ProductManagement() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageRows = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
   const from = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const to = Math.min(currentPage * PAGE_SIZE, filtered.length);
 
@@ -140,7 +161,9 @@ export default function ProductManagement() {
   }
 
   function toggleOne(id) {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   }
 
   function openCreate() {
@@ -160,6 +183,7 @@ export default function ProductManagement() {
       category: p.category || categorizeProduct(p, categories),
       quantity: p.quantity ?? 0,
       unit_price: p.unit_price ?? 0,
+      cost_price: getProductCost(p),
       min_stock_level: p.min_stock_level ?? 5,
     });
     setShowForm(true);
@@ -186,8 +210,14 @@ export default function ProductManagement() {
       min_stock_level: Number(form.min_stock_level) || 0,
     };
     try {
-      if (editingId) await api.put(`/products/${editingId}`, payload);
-      else await api.post("/products", payload);
+      let savedId = editingId;
+      if (editingId) {
+        await api.put(`/products/${editingId}`, payload);
+      } else {
+        const { data } = await api.post("/products", payload);
+        savedId = data.id;
+      }
+      setProductCost(savedId, form.cost_price);
       setShowForm(false);
       setEditingId(null);
       setForm(emptyForm);
@@ -203,6 +233,7 @@ export default function ProductManagement() {
     if (!window.confirm("Delete this product?")) return;
     try {
       await api.delete(`/products/${id}`);
+      removeProductCost(id);
       setSelected((prev) => prev.filter((x) => x !== id));
       await load();
     } catch (err) {
@@ -278,11 +309,19 @@ export default function ProductManagement() {
         </div>
 
         <div className="inv-actions">
-          <button type="button" className="btn btn--ghost" onClick={() => exportCsv(filtered, categories)}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => exportCsv(filtered, categories)}
+          >
             <Download size={16} strokeWidth={1.75} />
             Export CSV
           </button>
-          <button type="button" className="btn btn--primary btn--inline" onClick={openCreate}>
+          <button
+            type="button"
+            className="btn btn--primary btn--inline"
+            onClick={openCreate}
+          >
             <Plus size={16} strokeWidth={1.75} />
             Add item
           </button>
@@ -297,7 +336,10 @@ export default function ProductManagement() {
                 <th>
                   <input
                     type="checkbox"
-                    checked={pageRows.length > 0 && pageRows.every((p) => selected.includes(p.id))}
+                    checked={
+                      pageRows.length > 0 &&
+                      pageRows.every((p) => selected.includes(p.id))
+                    }
                     onChange={(e) => toggleAll(e.target.checked)}
                     aria-label="Select all on page"
                   />
@@ -306,7 +348,8 @@ export default function ProductManagement() {
                 <th>Category</th>
                 <th>Stock</th>
                 <th>Unit</th>
-                <th>Unit cost</th>
+                <th>Sell price</th>
+                <th>Cost price</th>
                 <th>Total value</th>
                 <th></th>
               </tr>
@@ -328,17 +371,30 @@ export default function ProductManagement() {
                   </td>
                   <td>{p.category}</td>
                   <td>
-                    <span className={p.status === "in" ? "" : "is-stock-warn"}>{p.quantity}</span>
+                    <span className={p.status === "in" ? "" : "is-stock-warn"}>
+                      {p.quantity}
+                    </span>
                   </td>
                   <td>pcs</td>
                   <td>{formatCedi(p.unit_price)}</td>
+                  <td>{formatCedi(p.cost_price)}</td>
                   <td>{formatCedi(p.totalValue)}</td>
                   <td>
                     <div className="btn-row">
-                      <button type="button" className="icon-btn" aria-label="Edit" onClick={() => openEdit(p)}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Edit"
+                        onClick={() => openEdit(p)}
+                      >
                         <Pencil size={16} strokeWidth={1.75} />
                       </button>
-                      <button type="button" className="icon-btn" aria-label="Delete" onClick={() => handleDelete(p.id)}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Delete"
+                        onClick={() => handleDelete(p.id)}
+                      >
                         <Trash2 size={16} strokeWidth={1.75} />
                       </button>
                     </div>
@@ -347,7 +403,7 @@ export default function ProductManagement() {
               ))}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={8}>No items match this filter.</td>
+                  <td colSpan={9}>No items match this filter.</td>
                 </tr>
               )}
             </tbody>
@@ -402,13 +458,20 @@ export default function ProductManagement() {
           <form className="inv-modal__panel" onSubmit={handleSubmit}>
             <div className="inv-modal__head">
               <h2>{editingId ? "Edit item" : "Add item"}</h2>
-              <button type="button" className="icon-btn" onClick={() => setShowForm(false)} aria-label="Close">
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowForm(false)}
+                aria-label="Close"
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="form-grid">
               <div className="field field--full">
-                <label className="label" htmlFor="name">Name</label>
+                <label className="label" htmlFor="name">
+                  Name
+                </label>
                 <div className="input">
                   <input
                     id="name"
@@ -420,7 +483,9 @@ export default function ProductManagement() {
               </div>
 
               <div className="field">
-                <label className="label" htmlFor="sku">SKU</label>
+                <label className="label" htmlFor="sku">
+                  SKU
+                </label>
                 <div className="input">
                   <input
                     id="sku"
@@ -431,12 +496,16 @@ export default function ProductManagement() {
               </div>
 
               <div className="field">
-                <label className="label" htmlFor="category">Category</label>
+                <label className="label" htmlFor="category">
+                  Category
+                </label>
                 <div className="input">
                   <select
                     id="category"
                     value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, category: e.target.value })
+                    }
                     required
                     style={{
                       width: "100%",
@@ -458,47 +527,86 @@ export default function ProductManagement() {
               </div>
 
               <div className="field">
-                <label className="label" htmlFor="quantity">Stock</label>
+                <label className="label" htmlFor="quantity">
+                  Stock
+                </label>
                 <div className="input">
                   <input
                     id="quantity"
                     type="number"
                     value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, quantity: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <div className="field">
-                <label className="label" htmlFor="unit_price">Unit cost (GHS)</label>
+                <label className="label" htmlFor="unit_price">
+                  Sell price (GHS)
+                </label>
                 <div className="input">
                   <input
                     id="unit_price"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={form.unit_price}
-                    onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, unit_price: e.target.value })
+                    }
                   />
                 </div>
               </div>
 
               <div className="field">
-                <label className="label" htmlFor="min_stock_level">Min stock</label>
+                <label className="label" htmlFor="cost_price">
+                  Cost price (GHS)
+                </label>
+                <div className="input">
+                  <input
+                    id="cost_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.cost_price}
+                    onChange={(e) =>
+                      setForm({ ...form, cost_price: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="label" htmlFor="min_stock_level">
+                  Min stock
+                </label>
                 <div className="input">
                   <input
                     id="min_stock_level"
                     type="number"
                     value={form.min_stock_level}
-                    onChange={(e) => setForm({ ...form, min_stock_level: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, min_stock_level: e.target.value })
+                    }
                   />
                 </div>
               </div>
             </div>
             <div className="btn-row" style={{ marginTop: 12 }}>
-              <button type="submit" className="btn btn--primary btn--inline" disabled={saving}>
+              <button
+                type="submit"
+                className="btn btn--primary btn--inline"
+                disabled={saving}
+              >
                 {saving ? "Saving..." : editingId ? "Update" : "Create"}
               </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setShowForm(false)}
+              >
                 Cancel
               </button>
             </div>

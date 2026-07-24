@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import { pendingSalesCount } from "../offline/sync";
 import { initials, productStatus } from "../utils/inventoryMetrics";
 import "../styles/shell.css";
+import { Wallet } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/categories", label: "Categories", icon: Tag },
   { to: "/orders", label: "Orders", icon: ShoppingCart, badgeKey: "orders" },
   { to: "/reports", label: "Reports", icon: ChartColumn },
+  { to: "/profit", label: "Profit", icon: Wallet },
   { to: "/backup", label: "Backup", icon: DatabaseBackup, ownerOnly: true },
 ];
 

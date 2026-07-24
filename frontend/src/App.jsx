@@ -16,6 +16,7 @@ import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
 import Backup from "./pages/Backup";
 import { flushPendingSales } from "./offline/sync";
+import Profit from "./pages/Profit";
 
 export default function App() {
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
               <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
               <Route path="/sale/new" element={<ProtectedRoute><NewSale /></ProtectedRoute>} />
               <Route path="/sale/confirm" element={<ProtectedRoute><ConfirmSale /></ProtectedRoute>} />
