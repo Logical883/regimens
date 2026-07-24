@@ -1,8 +1,5 @@
-// src/components/SyncStatus.jsx
-// Reference: docs/Architecture_Decision_Records.docx (ADR-005)
-// Small persistent indicator so the user always knows if there's unsynced work sitting
-// on the device (Team Collaboration Guide, task 4.6 - Benjamin).
 import { useEffect, useState } from "react";
+import { RefreshCw, WifiOff } from "lucide-react";
 import { pendingSalesCount } from "../offline/sync";
 
 export default function SyncStatus() {
@@ -29,10 +26,16 @@ export default function SyncStatus() {
   if (online && count === 0) return null;
 
   return (
-    <div className={`sync-status ${online ? "sync-status--syncing" : "sync-status--offline"}`}>
-      {online
-        ? `Syncing ${count} pending sale${count === 1 ? "" : "s"}...`
-        : `Offline${count > 0 ? ` \u2014 ${count} sale${count === 1 ? "" : "s"} waiting to sync` : ""}`}
+    <div
+      className={`sync-status ${online ? "sync-status--syncing" : "sync-status--offline"}`}
+      role="status"
+    >
+      {online ? <RefreshCw size={14} strokeWidth={2} /> : <WifiOff size={14} strokeWidth={2} />}
+      <span>
+        {online
+          ? `Syncing ${count} pending sale${count === 1 ? "" : "s"}...`
+          : `Offline${count > 0 ? ` — ${count} sale${count === 1 ? "" : "s"} waiting to sync` : ""}`}
+      </span>
     </div>
   );
 }

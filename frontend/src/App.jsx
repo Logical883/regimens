@@ -1,8 +1,8 @@
-// src/App.jsx
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { SaleProvider } from "./context/SaleContext";
+import { CategoryProvider } from "./context/CategoryContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SyncStatus from "./components/SyncStatus";
 import Login from "./pages/Login";
@@ -10,11 +10,13 @@ import Dashboard from "./pages/Dashboard";
 import NewSale from "./pages/NewSale";
 import ConfirmSale from "./pages/ConfirmSale";
 import SaleSuccess from "./pages/SaleSuccess";
+import ProductManagement from "./pages/ProductManagement";
+import Categories from "./pages/Categories";
+import Reports from "./pages/Reports";
+import Backup from "./pages/Backup";
 import { flushPendingSales } from "./offline/sync";
 
 export default function App() {
-  // Reference: docs/Architecture_Decision_Records.docx (ADR-005)
-  // Try to flush the offline queue on load and whenever connectivity returns.
   useEffect(() => {
     flushPendingSales().catch(() => {});
     const handleOnline = () => flushPendingSales().catch(() => {});
@@ -25,44 +27,22 @@ export default function App() {
   return (
     <AuthProvider>
       <SaleProvider>
-        <BrowserRouter>
-          <SyncStatus />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale/new"
-              element={
-                <ProtectedRoute>
-                  <NewSale />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale/confirm"
-              element={
-                <ProtectedRoute>
-                  <ConfirmSale />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale/success"
-              element={
-                <ProtectedRoute>
-                  <SaleSuccess />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
+        <CategoryProvider>
+          <BrowserRouter>
+            <SyncStatus />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/sale/new" element={<ProtectedRoute><NewSale /></ProtectedRoute>} />
+              <Route path="/sale/confirm" element={<ProtectedRoute><ConfirmSale /></ProtectedRoute>} />
+              <Route path="/sale/success" element={<ProtectedRoute><SaleSuccess /></ProtectedRoute>} />
+              <Route path="/products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+              <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/backup" element={<ProtectedRoute><Backup /></ProtectedRoute>} />
+            </Routes>
+          </BrowserRouter>
+        </CategoryProvider>
       </SaleProvider>
     </AuthProvider>
   );

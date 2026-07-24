@@ -1,8 +1,5 @@
-// src/pages/SaleSuccess.jsx
-// Reference: docs/UIUX_Design_Guide_Week2.docx (Screen 5), User Stories 4, 7
-// Reference: docs/Architecture_Decision_Records.docx (ADR-005) - shows a pending-sync
-// state when the sale was recorded offline, per Team Collaboration Guide task 4.6.
 import { Link, Navigate } from "react-router-dom";
+import { CircleCheck, Clock3 } from "lucide-react";
 import { useSale } from "../context/SaleContext";
 
 export default function SaleSuccess() {
@@ -12,37 +9,42 @@ export default function SaleSuccess() {
 
   return (
     <div className="screen screen--centered">
-      <div className="card card--success">
+      <div className="auth-shell panel" style={{ textAlign: "center" }}>
         {lastResult.pending ? (
           <>
-            <h1>Sale Saved Offline</h1>
-            <p className="muted">
-              No connection right now &mdash; this sale is queued and will sync automatically
-              once you're back online.
+            <Clock3 size={28} strokeWidth={1.75} />
+            <h1 style={{ marginTop: 12 }}>Sale saved offline</h1>
+            <p className="muted" style={{ marginTop: 8 }}>
+              No connection right now — this sale is queued and will sync automatically once you are back online.
             </p>
-            <span className="badge badge--pending">Pending sync</span>
+            <span className="badge badge--pending" style={{ marginTop: 12 }}>
+              Pending sync
+            </span>
           </>
         ) : (
           <>
-            <h1>Sale Recorded</h1>
-            <p className="muted">Stock has been updated.</p>
-            <span className="badge badge--success">Synced</span>
+            <CircleCheck size={28} strokeWidth={1.75} />
+            <h1 style={{ marginTop: 12 }}>Sale recorded</h1>
+            <p className="muted" style={{ marginTop: 8 }}>Stock has been updated.</p>
+            <span className="badge badge--success" style={{ marginTop: 12 }}>
+              Synced
+            </span>
           </>
         )}
 
-        <ul className="product-list">
+        <ul className="product-list" style={{ marginTop: 20, textAlign: "left" }}>
           {lastResult.cartSnapshot?.map((line) => (
             <li key={line.product.id} className="product-list__item">
               <span>{line.product.name}</span>
-              <span>&times;{line.quantity}</span>
+              <span>×{line.quantity}</span>
             </li>
           ))}
         </ul>
 
-        <p className="total">Total: GH₵{Number(lastResult.total || 0).toFixed(2)}</p>
+        <p className="total">Total: GHS {Number(lastResult.total || 0).toFixed(2)}</p>
 
-        <Link className="button button--primary" to="/">
-          Back to Dashboard
+        <Link className="btn btn--primary" to="/">
+          Back to dashboard
         </Link>
       </div>
     </div>

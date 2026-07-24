@@ -1,7 +1,6 @@
-// src/pages/NewSale.jsx
-// Reference: docs/UIUX_Design_Guide_Week2.docx (Screen 3), User Stories 4, 5
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Plus, Search } from "lucide-react";
 import api from "../api/client";
 import { useSale } from "../context/SaleContext";
 
@@ -24,16 +23,28 @@ export default function NewSale() {
   return (
     <div className="screen">
       <header className="topbar">
-        <h1>New Sale</h1>
-        <Link to="/">Cancel</Link>
+        <div className="topbar__meta">
+          <h1>New sale</h1>
+          <p className="muted">Search and add items to the cart</p>
+        </div>
+        <Link className="btn btn--ghost" to="/">
+          <ArrowLeft size={16} strokeWidth={1.75} />
+          Cancel
+        </Link>
       </header>
 
-      <input
-        className="search"
-        placeholder="Search products..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="field">
+        <label className="label" htmlFor="search">Search</label>
+        <div className="input">
+          <Search size={18} strokeWidth={1.75} />
+          <input
+            id="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products..."
+          />
+        </div>
+      </div>
 
       <ul className="product-list">
         {products.map((p) => (
@@ -41,13 +52,16 @@ export default function NewSale() {
             <div>
               <strong>{p.name}</strong>
               <p className="muted">
-                GH₵{Number(p.unit_price).toFixed(2)} &middot; {p.quantity} in stock
+                GHS {Number(p.unit_price).toFixed(2)} · {p.quantity} in stock
               </p>
             </div>
             <button
+              className="btn btn--ghost"
+              type="button"
               disabled={p.quantity === 0}
               onClick={() => addToCart(p, 1)}
             >
+              <Plus size={16} strokeWidth={1.75} />
               Add
             </button>
           </li>
@@ -56,14 +70,19 @@ export default function NewSale() {
       </ul>
 
       <footer className="cart-summary">
-        <span>{cart.length} item{cart.length === 1 ? "" : "s"} &middot; GH₵{total.toFixed(2)}</span>
-        <button
-          className="button--primary"
-          disabled={cart.length === 0}
-          onClick={() => navigate("/sale/confirm")}
-        >
-          Review Sale
-        </button>
+        <div className="cart-summary__inner">
+          <span>
+            {cart.length} item{cart.length === 1 ? "" : "s"} · GHS {total.toFixed(2)}
+          </span>
+          <button
+            className="btn btn--primary btn--inline"
+            type="button"
+            disabled={cart.length === 0}
+            onClick={() => navigate("/sale/confirm")}
+          >
+            Review sale
+          </button>
+        </div>
       </footer>
     </div>
   );

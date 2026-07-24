@@ -1,7 +1,6 @@
-// src/pages/ConfirmSale.jsx
-// Reference: docs/UIUX_Design_Guide_Week2.docx (Screen 4), User Story 4
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, Trash2, TriangleAlert } from "lucide-react";
 import { useSale } from "../context/SaleContext";
 import { recordSale } from "../offline/sync";
 
@@ -15,7 +14,10 @@ export default function ConfirmSale() {
     setError("");
     setSubmitting(true);
     try {
-      const items = cart.map((line) => ({ product_id: line.product.id, quantity: line.quantity }));
+      const items = cart.map((line) => ({
+        product_id: line.product.id,
+        quantity: line.quantity,
+      }));
       const result = await recordSale(items);
       setLastResult({ ...result, cartSnapshot: cart, total });
       clearCart();
@@ -31,7 +33,7 @@ export default function ConfirmSale() {
     return (
       <div className="screen">
         <p>Your cart is empty.</p>
-        <Link to="/sale/new">Back to New Sale</Link>
+        <Link className="btn btn--ghost" to="/sale/new">Back to new sale</Link>
       </div>
     );
   }
@@ -39,8 +41,14 @@ export default function ConfirmSale() {
   return (
     <div className="screen">
       <header className="topbar">
-        <h1>Confirm Sale</h1>
-        <Link to="/sale/new">Back</Link>
+        <div className="topbar__meta">
+          <h1>Confirm sale</h1>
+          <p className="muted">Review items before recording</p>
+        </div>
+        <Link className="btn btn--ghost" to="/sale/new">
+          <ArrowLeft size={16} strokeWidth={1.75} />
+          Back
+        </Link>
       </header>
 
       <ul className="product-list">
@@ -49,20 +57,29 @@ export default function ConfirmSale() {
             <div>
               <strong>{line.product.name}</strong>
               <p className="muted">
-                {line.quantity} &times; GH₵{Number(line.product.unit_price).toFixed(2)}
+                {line.quantity} × GHS {Number(line.product.unit_price).toFixed(2)}
               </p>
             </div>
-            <button onClick={() => removeFromCart(line.product.id)}>Remove</button>
+            <button className="btn btn--danger" type="button" onClick={() => removeFromCart(line.product.id)}>
+              <Trash2 size={16} strokeWidth={1.75} />
+              Remove
+            </button>
           </li>
         ))}
       </ul>
 
-      <p className="total">Total: GH₵{total.toFixed(2)}</p>
+      <p className="total">Total: GHS {total.toFixed(2)}</p>
 
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <div className="alert alert--error" role="alert">
+          <TriangleAlert size={18} strokeWidth={1.75} />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <button className="button--primary" onClick={handleConfirm} disabled={submitting}>
-        {submitting ? "Recording..." : "Confirm Sale"}
+      <button className="btn btn--primary" type="button" onClick={handleConfirm} disabled={submitting}>
+        <Check size={16} strokeWidth={1.75} />
+        {submitting ? "Recording..." : "Confirm sale"}
       </button>
     </div>
   );

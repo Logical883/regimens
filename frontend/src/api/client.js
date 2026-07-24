@@ -1,4 +1,3 @@
-// src/api/client.js
 import axios from "axios";
 
 const api = axios.create({
@@ -6,7 +5,8 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("regimens_token");
+  const token =
+    localStorage.getItem("regimens_token") || sessionStorage.getItem("regimens_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

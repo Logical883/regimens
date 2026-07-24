@@ -1,22 +1,24 @@
-// src/context/AuthContext.jsx
-// Reference: docs/Architecture_Decision_Records.docx (ADR-004)
-// Token is cached in localStorage so a user who's already logged in can keep using
-// the app (recording sales, browsing cached products) even with no connection.
 import { createContext, useContext, useState } from "react";
 import api from "../api/client";
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const cached = localStorage.getItem("regimens_user");
-    return cached ? JSON.parse(cached) : null;
-  });
+function readCachedUser() {
+  const raw = localStorage.getItem("regimens_user") || sessionStorage.getItem("regimens_user");
+  return raw ? JSON.parse(raw) : null;
+}
 
-  async function login(username, password) {
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(() => readCachedUser());
+
+  async function login(username, password, keepSignedIn = true) {
     const { data } = await api.post("/auth/login", { username, password });
-    localStorage.setItem("regimens_token", data.token);
-    localStorage.setItem("regimens_user", JSON.stringify(data.user));
+    const store = keepSignedIn ? localStorage : sessionStorage;
+    const other = keepSignedIn ? sessionStorage : localStorage;
+    other.removeItem("regimens_token");
+    other.removeItem("regimens_user");
+    store.setItem("regimens_token", data.token);
+    store.setItem("regimens_user", JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   }
@@ -24,6 +26,8 @@ export function AuthProvider({ children }) {
   function logout() {
     localStorage.removeItem("regimens_token");
     localStorage.removeItem("regimens_user");
+    sessionStorage.removeItem("regimens_token");
+    sessionStorage.removeItem("regimens_user");
     setUser(null);
   }
 
