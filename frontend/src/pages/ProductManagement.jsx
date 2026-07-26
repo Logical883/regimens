@@ -14,16 +14,12 @@ import api from "../api/client";
 import AppShell from "../components/AppShell";
 import { useCategories } from "../context/CategoryContext";
 import {
-  getProductCost,
-  setProductCost,
-  removeProductCost,
-} from "../utils/productCosts";
-import {
   buildInventoryMetrics,
   categorizeProduct,
   formatCedi,
   productStatus,
 } from "../utils/inventoryMetrics";
+import { getProductCost } from "../utils/productCosts";
 
 const PAGE_SIZE = 8;
 const emptyForm = {
@@ -207,17 +203,15 @@ export default function ProductManagement() {
       category: form.category.trim(),
       quantity: Number(form.quantity) || 0,
       unit_price: Number(form.unit_price) || 0,
+      cost_price: Number(form.cost_price) || 0,
       min_stock_level: Number(form.min_stock_level) || 0,
     };
     try {
-      let savedId = editingId;
       if (editingId) {
         await api.put(`/products/${editingId}`, payload);
       } else {
-        const { data } = await api.post("/products", payload);
-        savedId = data.id;
+        await api.post("/products", payload);
       }
-      setProductCost(savedId, form.cost_price);
       setShowForm(false);
       setEditingId(null);
       setForm(emptyForm);
@@ -233,7 +227,6 @@ export default function ProductManagement() {
     if (!window.confirm("Delete this product?")) return;
     try {
       await api.delete(`/products/${id}`);
-      removeProductCost(id);
       setSelected((prev) => prev.filter((x) => x !== id));
       await load();
     } catch (err) {

@@ -10,7 +10,8 @@ const router = express.Router();
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
-  const { username, password } = req.body || {};
+  const username = String(req.body?.username || "").trim().slice(0, 60);
+  const password = String(req.body?.password || "").slice(0, 200);
   if (!username || !password) {
     return res.status(422).json({ message: "username and password are required" });
   }
@@ -19,6 +20,8 @@ router.post("/login", async (req, res) => {
     const user = await data.findUserByUsername(username);
 
     if (!user) {
+      // Constant-ish response path; avoid username enumeration.
+      await bcrypt.compare(password, "$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUV");
       return res.status(401).json({ message: "Invalid username or password" });
     }
 

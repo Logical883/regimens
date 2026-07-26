@@ -1252,3 +1252,128 @@ input[type="checkbox"] {
 
 /* Optional warmer brown if you prefer the accent: */
 /* accent-color: #b35a2d; */
+
+/* ---- Sales screens ---- */
+.sale-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .sale-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sale-product-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sale-product-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sale-product-list__item:last-child {
+  border-bottom: 0;
+}
+
+.sale-product-list__item strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.sale-cart-card {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 14px;
+  padding: 16px;
+  position: sticky;
+  top: 16px;
+}
+
+.sale-cart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sale-cart-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.9rem;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sale-cart-footer,
+.sale-confirm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sale-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sale-qty__value {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.sale-success-card {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+}
+
+.sale-success-card__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #efe8dc;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.badge--success {
+  background: #e4f0e4;
+  color: #1f5b2f;
+}
+
+.badge--pending {
+  background: #e8eef7;
+  color: #1f3864;
+}

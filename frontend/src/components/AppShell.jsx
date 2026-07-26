@@ -10,10 +10,12 @@ import {
   LogOut,
   Menu,
   Package,
+  Receipt,
   Search,
   ShoppingCart,
   Tag,
   TriangleAlert,
+  Wallet,
   X,
 } from "lucide-react";
 import api from "../api/client";
@@ -21,12 +23,12 @@ import { useAuth } from "../context/AuthContext";
 import { pendingSalesCount } from "../offline/sync";
 import { initials, productStatus } from "../utils/inventoryMetrics";
 import "../styles/shell.css";
-import { Wallet } from "lucide-react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/products", label: "Inventory", icon: Package },
   { to: "/categories", label: "Categories", icon: Tag },
+  { to: "/sale/new", label: "Sales", icon: Receipt },
   { to: "/orders", label: "Orders", icon: ShoppingCart, badgeKey: "orders" },
   { to: "/reports", label: "Reports", icon: ChartColumn },
   { to: "/profit", label: "Profit", icon: Wallet },

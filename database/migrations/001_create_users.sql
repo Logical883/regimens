@@ -10,4 +10,3 @@ CREATE TABLE IF NOT EXISTS users (
                   CHECK (role IN ('owner', 'assistant')),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
-0-

@@ -1,114 +1,130 @@
 // src/routes/backup.js
-// Reference: docs/API_Schema_Regimens.docx (Backup), User Story 10
-// Implementation note: for the scaffold, a "backup" is a JSON export of the core tables
-// written to backend/../database/backups/. This avoids depending on the pg_dump binary
-// being on everyone's PATH. Swap for pg_dump/pg_restore later if the team wants a true
-// binary dump.
+// Owner-only JSON snapshots. Works in CONNECTED (Postgres + disk) and STANDALONE (mock memory).
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const pool = require("../db");
+const data = require("../data");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(requireRole("owner"));
 
 const BACKUP_DIR = path.join(__dirname, "..", "..", "..", "database", "backups");
+const BACKUP_ROOT = path.resolve(BACKUP_DIR);
 
-router.post("/", requireRole("owner"), async (req, res) => {
+function ensureBackupDir() {
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+function resolveSafeBackupPath(relativePath) {
+  const resolved = path.resolve(path.join(__dirname, "..", "..", ".."), relativePath);
+  if (!resolved.startsWith(BACKUP_ROOT + path.sep) && resolved !== BACKUP_ROOT) {
+    const err = new Error("Invalid backup path");
+    err.status = 400;
+    throw err;
+  }
+  return resolved;
+}
+
+async function buildSnapshot() {
+  const [users, products, categories, sales] = await Promise.all([
+    data.listUsersForBackup ? data.listUsersForBackup() : [],
+    data.listProducts({}),
+    data.listCategories(),
+    data.listSales({}),
+  ]);
+
+  const sale_items = [];
+  for (const sale of sales) {
+    for (const item of sale.items || []) {
+      sale_items.push({ ...item, sale_id: sale.id });
+    }
+  }
+
+  return {
+    version: 2,
+    created_at: new Date().toISOString(),
+    users,
+    products,
+    categories,
+    sales: sales.map(({ items, ...sale }) => sale),
+    sale_items,
+  };
+}
+
+router.post("/", async (req, res) => {
   try {
-    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const snapshot = await buildSnapshot();
 
-    const tables = ["users", "products", "sales", "sale_items"];
-    const snapshot = {};
-    for (const table of tables) {
-      const result = await pool.query(`SELECT * FROM ${table}`);
-      snapshot[table] = result.rows;
+    if (data.mode === "mock") {
+      const record = await data.createBackupRecord({
+        created_by: req.user.id,
+        file_path: `memory://backup-${Date.now()}`,
+        status: "completed",
+        snapshot,
+      });
+      return res.status(201).json(record);
     }
 
+    ensureBackupDir();
     const filename = `backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     const filePath = path.join(BACKUP_DIR, filename);
-    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
+    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), { mode: 0o600 });
 
-    const record = await pool.query(
-      `INSERT INTO backups (created_by, file_path, status) VALUES ($1, $2, 'completed') RETURNING *`,
-      [req.user.id, path.relative(path.join(__dirname, "..", "..", ".."), filePath)]
-    );
-
-    res.status(201).json(record.rows[0]);
+    const relative = path.relative(path.join(__dirname, "..", "..", ".."), filePath);
+    const record = await data.createBackupRecord({
+      created_by: req.user.id,
+      file_path: relative,
+      status: "completed",
+    });
+    res.status(201).json(record);
   } catch (err) {
     console.error(err);
     try {
-      await pool.query(
-        `INSERT INTO backups (created_by, file_path, status) VALUES ($1, $2, 'failed')`,
-        [req.user.id, "n/a"]
-      );
+      await data.createBackupRecord({
+        created_by: req.user.id,
+        file_path: "n/a",
+        status: "failed",
+      });
     } catch (_) {}
     res.status(500).json({ message: "Backup failed" });
   }
 });
 
-router.get("/", requireRole("owner"), async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM backups ORDER BY created_at DESC");
-    res.json(result.rows);
+    const rows = await data.listBackupRecords();
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Something went wrong listing backups" });
   }
 });
 
-router.post("/:id/restore", requireRole("owner"), async (req, res) => {
-  const client = await pool.connect();
+router.post("/:id/restore", async (req, res) => {
   try {
-    const backupResult = await client.query("SELECT * FROM backups WHERE id = $1", [req.params.id]);
-    const backup = backupResult.rows[0];
+    const backup = await data.getBackupRecord(req.params.id);
     if (!backup) return res.status(404).json({ message: "Backup not found" });
-
-    const filePath = path.join(__dirname, "..", "..", "..", backup.file_path);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: "Backup file missing on disk" });
+    if (backup.status !== "completed") {
+      return res.status(422).json({ message: "Only completed backups can be restored" });
     }
 
-    const snapshot = JSON.parse(fs.readFileSync(filePath, "utf8"));
-
-    await client.query("BEGIN");
-    await client.query("TRUNCATE sale_items, sales, products, users RESTART IDENTITY CASCADE");
-
-    for (const user of snapshot.users || []) {
-      await client.query(
-        `INSERT INTO users (id, name, username, password_hash, role, created_at) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [user.id, user.name, user.username, user.password_hash, user.role, user.created_at]
-      );
-    }
-    for (const product of snapshot.products || []) {
-      await client.query(
-        `INSERT INTO products (id, name, sku, quantity, unit_price, min_stock_level, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [product.id, product.name, product.sku, product.quantity, product.unit_price, product.min_stock_level, product.created_at, product.updated_at]
-      );
-    }
-    for (const sale of snapshot.sales || []) {
-      await client.query(
-        `INSERT INTO sales (id, user_id, total_amount, sync_status, created_at) VALUES ($1,$2,$3,$4,$5)`,
-        [sale.id, sale.user_id, sale.total_amount, sale.sync_status, sale.created_at]
-      );
-    }
-    for (const item of snapshot.sale_items || []) {
-      await client.query(
-        `INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [item.id, item.sale_id, item.product_id, item.quantity, item.unit_price, item.subtotal]
-      );
+    let snapshot = backup.snapshot || null;
+    if (!snapshot) {
+      const filePath = resolveSafeBackupPath(backup.file_path);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: "Backup file missing on disk" });
+      }
+      snapshot = JSON.parse(fs.readFileSync(filePath, "utf8"));
     }
 
-    await client.query("COMMIT");
+    await data.restoreFromSnapshot(snapshot);
     res.json({ message: "Restore complete", status: "completed" });
   } catch (err) {
-    await client.query("ROLLBACK");
-    console.error(err);
-    res.status(500).json({ message: "Restore failed" });
-  } finally {
-    client.release();
+    const status = err.status || 500;
+    if (status >= 500) console.error(err);
+    res.status(status).json({ message: err.message || "Restore failed" });
   }
 });
 

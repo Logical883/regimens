@@ -1,5 +1,6 @@
 const STORAGE_KEY = "regimens_product_costs";
 
+/** @deprecated Read-only legacy fallback; costs now live on the product API. */
 export function getCostMap() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -10,6 +11,7 @@ export function getCostMap() {
   }
 }
 
+/** Prefer API `cost_price`; fall back to legacy localStorage if the field is absent. */
 export function getProductCost(product) {
   if (!product) return 0;
   if (product.cost_price !== undefined && product.cost_price !== null && product.cost_price !== "") {
@@ -19,14 +21,7 @@ export function getProductCost(product) {
   return Number(map[String(product.id)]) || 0;
 }
 
-export function setProductCost(productId, costPrice) {
-  const map = getCostMap();
-  map[String(productId)] = Number(costPrice) || 0;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-}
-
-export function removeProductCost(productId) {
-  const map = getCostMap();
-  delete map[String(productId)];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+/** Clear legacy local cost cache (no longer written by the app). */
+export function clearLocalProductCosts() {
+  localStorage.removeItem(STORAGE_KEY);
 }

@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import api from "../api/client";
+import { useAuth } from "./AuthContext";
 
 const STORAGE_KEY = "regimens_categories";
 
@@ -67,7 +69,7 @@ const DEFAULT_CATEGORIES = [
 
 const CategoryContext = createContext(null);
 
-function loadCategories() {
+function loadLegacyCategories() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_CATEGORIES;
@@ -79,23 +81,74 @@ function loadCategories() {
 }
 
 export function CategoryProvider({ children }) {
-  const [categories, setCategories] = useState(() => loadCategories());
+  const { user } = useAuth();
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fromApi, setFromApi] = useState(false);
 
+  const refresh = useCallback(async () => {
+    try {
+      const { data } = await api.get("/categories");
+      if (Array.isArray(data)) {
+        setCategories(data);
+        setFromApi(true);
+        localStorage.removeItem(STORAGE_KEY);
+        return data;
+      }
+    } catch {
+      // fall through to legacy
+    }
+    setFromApi(false);
+    setCategories(loadLegacyCategories());
+    return null;
+  }, []);
+
+  // Load (or reload) when auth is ready so /categories gets a JWT.
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
-  }, [categories]);
+    let active = true;
+    setLoading(true);
+    refresh()
+      .catch(() => {
+        if (!active) return;
+        setFromApi(false);
+        setCategories(loadLegacyCategories());
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [refresh, user?.id]);
 
-  function addCategory({ name, description = "", keywords = "" }) {
+  // Persist only when still offline/legacy (API unavailable).
+  useEffect(() => {
+    if (loading || fromApi) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
+  }, [categories, fromApi, loading]);
+
+  async function addCategory({ name, description = "", keywords = "" }) {
     const trimmed = name.trim();
-    if (!trimmed) {
-      throw new Error("Category name is required.");
+    if (!trimmed) throw new Error("Category name is required.");
+
+    if (fromApi) {
+      try {
+        const { data } = await api.post("/categories", {
+          name: trimmed,
+          description: description.trim(),
+          keywords: keywords.trim(),
+        });
+        setCategories((prev) =>
+          [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+        );
+        return data;
+      } catch (err) {
+        throw new Error(err.response?.data?.message || "Couldn't create category.");
+      }
     }
-    const exists = categories.some(
-      (c) => c.name.toLowerCase() === trimmed.toLowerCase()
-    );
-    if (exists) {
-      throw new Error("A category with that name already exists.");
-    }
+
+    const exists = categories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+    if (exists) throw new Error("A category with that name already exists.");
     const category = {
       id: `cat-${Date.now()}`,
       name: trimmed,
@@ -106,36 +159,70 @@ export function CategoryProvider({ children }) {
     return category;
   }
 
-function updateCategory(id, { name, description = "", keywords = "" }) {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error("Category name is required.");
-  const exists = categories.some(
-    (c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase()
-  );
-  if (exists) throw new Error("A category with that name already exists.");
-  setCategories((prev) =>
-    prev
-      .map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              name: trimmed,
-              description: description.trim(),
-              keywords: keywords.trim(),
-            }
-          : c
-      )
-      .sort((a, b) => a.name.localeCompare(b.name))
-  );
-}
+  async function updateCategory(id, { name, description = "", keywords = "" }) {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Category name is required.");
 
-function deleteCategory(id) {
-  setCategories((prev) => prev.filter((c) => c.id !== id));
-}
+    if (fromApi) {
+      try {
+        const { data } = await api.put(`/categories/${id}`, {
+          name: trimmed,
+          description: description.trim(),
+          keywords: keywords.trim(),
+        });
+        setCategories((prev) =>
+          prev
+            .map((c) => (String(c.id) === String(id) ? data : c))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        return data;
+      } catch (err) {
+        throw new Error(err.response?.data?.message || "Couldn't update category.");
+      }
+    }
+
+    const exists = categories.some(
+      (c) => String(c.id) !== String(id) && c.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (exists) throw new Error("A category with that name already exists.");
+    setCategories((prev) =>
+      prev
+        .map((c) =>
+          String(c.id) === String(id)
+            ? {
+                ...c,
+                name: trimmed,
+                description: description.trim(),
+                keywords: keywords.trim(),
+              }
+            : c
+        )
+        .sort((a, b) => a.name.localeCompare(b.name))
+    );
+  }
+
+  async function deleteCategory(id) {
+    if (fromApi) {
+      try {
+        await api.delete(`/categories/${id}`);
+      } catch (err) {
+        throw new Error(err.response?.data?.message || "Couldn't delete category.");
+      }
+    }
+    setCategories((prev) => prev.filter((c) => String(c.id) !== String(id)));
+  }
 
   const value = useMemo(
-    () => ({ categories, addCategory, updateCategory, deleteCategory }),
-    [categories]
+    () => ({
+      categories,
+      loading,
+      fromApi,
+      refresh,
+      addCategory,
+      updateCategory,
+      deleteCategory,
+    }),
+    [categories, loading, fromApi, refresh]
   );
 
   return <CategoryContext.Provider value={value}>{children}</CategoryContext.Provider>;

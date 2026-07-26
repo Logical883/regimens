@@ -82,21 +82,25 @@ export default function Categories() {
     setShowForm(true);
   }
 
-  function handleDelete(card) {
+  async function handleDelete(card) {
     if (card.id === "cat-other") return;
     if (!window.confirm(`Delete category "${card.name}"? Products stay in inventory.`)) return;
-    deleteCategory(card.id);
+    try {
+      await deleteCategory(card.id);
+    } catch (err) {
+      setError(err.message || "Couldn't delete category.");
+    }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setFormError("");
     setSaving(true);
     try {
       if (editingId) {
-        updateCategory(editingId, form);
+        await updateCategory(editingId, form);
       } else {
-        addCategory(form);
+        await addCategory(form);
       }
       setForm(emptyForm);
       setEditingId(null);

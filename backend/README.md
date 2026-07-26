@@ -28,10 +28,11 @@ same demo account and 5 sample products as the real seed script, so login and th
 frontend work immediately. Data resets every time you restart the server — that's
 expected, it's for building against, not for storing anything real.
 
-Auth, Products, and Sales all work in standalone mode. **Reports, Backup, and Sync
-still require connected mode** — they're more naturally tied to real persisted data,
-so build/test those against real Postgres once `database/` is set up (see
-`../database/README.md`).
+Auth, Products, Categories, Sales, and **Profit reports** (`GET /api/reports/profit`)
+all work in standalone mode. **Sales revenue reports** (`GET /api/reports/sales`),
+Backup, and Sync still require connected mode — they're more naturally tied to real
+persisted data, so build/test those against real Postgres once `database/` is set up
+(see `../database/README.md`).
 
 Switching to connected mode later is one line — set `USE_MOCK_DB=false` in `.env` and
 make sure `DATABASE_URL` points at your Postgres instance. No route code changes.
@@ -84,6 +85,16 @@ curl http://localhost:4000/api/products \
   -H "Authorization: Bearer <token>"
 ```
 
+Useful follow-ups for cost / profit demos:
+
+```
+curl http://localhost:4000/api/categories -H "Authorization: Bearer <token>"
+curl "http://localhost:4000/api/reports/profit?period=monthly" -H "Authorization: Bearer <token>"
+```
+
+Or run the packaged script from the repo root: `bash docs/demo-script.sh`
+(see `../docs/DEMO.md`).
+
 ## Folder structure
 
 ```
@@ -98,9 +109,10 @@ backend/
 │   ├── middleware/auth.js ← JWT verification + role check (ADR-004)
 │   └── routes/            ← one file per resource, matching API_Schema_Regimens.docx
 │       ├── auth.js         ← uses data/ (works in both modes)
-│       ├── products.js     ← uses data/ (works in both modes)
-│       ├── sales.js        ← uses data/ (works in both modes)
-│       ├── reports.js      ← Postgres only, for now
+│       ├── products.js     ← uses data/ (works in both modes; category + cost_price)
+│       ├── categories.js   ← uses data/ (works in both modes)
+│       ├── sales.js        ← uses data/ (works in both modes; stamps unit_cost)
+│       ├── reports.js      ← /profit via data/; /sales still Postgres-only
 │       ├── backup.js       ← Postgres only, for now
 │       └── sync.js         ← Postgres only, for now (offline queue replay, ADR-005)
 └── .env.example

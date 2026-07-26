@@ -2,6 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api",
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
@@ -10,5 +11,21 @@ api.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const onLogin = window.location.pathname.startsWith("/login");
+      if (!onLogin) {
+        localStorage.removeItem("regimens_token");
+        localStorage.removeItem("regimens_user");
+        sessionStorage.removeItem("regimens_token");
+        sessionStorage.removeItem("regimens_user");
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

@@ -187,12 +187,8 @@ export default function Backup() {
         await api.post(`/backup/${showRestore.id}/restore`);
         setMessage("Restore complete on the server.");
       } else if (showRestore.snapshot) {
-        localStorage.setItem(
-          "regimens_categories",
-          JSON.stringify(showRestore.snapshot.categories || [])
-        );
         setMessage(
-          "Local categories restored. Full product restore needs the server backup API."
+          "Local product snapshot noted. Categories are managed via the Categories API — restore products with the server backup API when available."
         );
       } else {
         setError("This backup has no restoreable snapshot.");

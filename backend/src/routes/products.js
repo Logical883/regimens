@@ -28,7 +28,7 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { name, sku, quantity, unit_price, min_stock_level, category } = req.body || {};
+  const { name, sku, quantity, unit_price, min_stock_level, category, cost_price } = req.body || {};
   if (!name) {
     return res.status(422).json({ message: "name is required" });
   }
@@ -41,6 +41,7 @@ router.post("/", async (req, res) => {
       unit_price,
       min_stock_level,
       category,
+      cost_price,
     });
     res.status(201).json(product);
   } catch (err) {
@@ -51,7 +52,15 @@ router.post("/", async (req, res) => {
 });
 
 router.put("/:id", async (req, res) => {
-  const fields = ["name", "sku", "quantity", "unit_price", "min_stock_level", "category"];
+  const fields = [
+    "name",
+    "sku",
+    "quantity",
+    "unit_price",
+    "min_stock_level",
+    "category",
+    "cost_price",
+  ];
   const updates = {};
   for (const field of fields) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];

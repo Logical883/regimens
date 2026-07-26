@@ -24,15 +24,28 @@ Owners: Peter, David, Benjamin
    `/login` — log in with the demo account from the database seed:
    `username: owner`, `password: owner1234`.
 
-## Screens (matches docs/UIUX_Design_Guide_Week2.docx)
+## Screens
 
 | Route | Screen |
 |---|---|
 | `/login` | Login |
-| `/` | Dashboard (inventory list, low-stock banner) |
-| `/sale/new` | New Sale (search + add to cart) |
-| `/sale/confirm` | Confirm Sale (review cart, submit) |
-| `/sale/success` | Sale Success (shows synced or pending-sync state) |
+| `/` | Dashboard (stats, stock by category) |
+| `/products` | Inventory (CRUD, cost price, category) |
+| `/categories` | Category groups (API-backed CRUD) |
+| `/orders` | Purchase / reorder suggestions |
+| `/reports` | Inventory analytics |
+| `/profit` | Gross profit (D/W/M/Y via `/api/reports/profit`) |
+| `/sale/new` | New sale (AppShell) |
+| `/sale/confirm` | Confirm sale (AppShell) |
+| `/sale/success` | Sale success / pending sync (AppShell) |
+| `/backup` | Backup / restore (owner) |
+
+## Cost & categories
+
+- Product **cost price** and **category** are saved through `POST/PUT /api/products`.
+- Categories load from `GET /api/categories` (legacy `localStorage` only if the API is down).
+- Profit prefers `GET /api/reports/profit`; falls back to client math from sales + products.
+- Sale lines carry `unit_cost` from the API when a sale is recorded.
 
 ## Folder structure
 
@@ -45,8 +58,10 @@ frontend/
 │   │   └── sync.js            ← queues sales offline, replays them via POST /api/sync
 │   ├── context/
 │   │   ├── AuthContext.jsx    ← login state, token persisted in localStorage
+│   │   ├── CategoryContext.jsx← categories from API (legacy localStorage fallback)
 │   │   └── SaleContext.jsx    ← in-progress cart, shared across the sale screens
 │   ├── components/
+│   │   ├── AppShell.jsx       ← shared nav / layout for app screens
 │   │   ├── ProtectedRoute.jsx
 │   │   ├── LowStockBanner.jsx
 │   │   └── SyncStatus.jsx     ← shows "offline" / "N sales pending sync" banner
@@ -69,3 +84,7 @@ In Chrome DevTools: Network tab → set throttling to "Offline" → record a sal
 should land on Sale Success with the "Pending sync" badge. Switch back to "No throttling"
 and the sale should sync automatically within a few seconds (watch the Network tab for
 a `POST /api/sync` call).
+
+## Full feature demo
+
+See `../docs/DEMO.md` and `../docs/demo-script.sh`.

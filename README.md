@@ -54,8 +54,8 @@ npm run migrate
 npm run seed        # optional, but recommended for local dev — creates a demo login
 ```
 
-This creates a demo account: `username: owner`, `password: owner1234`, plus 5 sample
-products.
+This creates a demo account: `username: owner`, `password: owner1234`, plus sample
+categories and 5 products with `category` + `cost_price`.
 
 ### 2. Backend
 
@@ -67,6 +67,10 @@ npm run dev
 ```
 
 Confirm it's up: `curl http://localhost:4000/api/health` should return `{"status":"ok"}`.
+
+Default is **standalone mock** (`USE_MOCK_DB=true`) — no Postgres required. Products,
+categories, sales (with stamped `unit_cost`), and `GET /api/reports/profit` all work
+in mock mode.
 
 ### 3. Frontend
 
@@ -82,6 +86,16 @@ account above.
 
 Each folder's own README has more detail — see `backend/README.md`, `database/README.md`,
 and `frontend/README.md`.
+
+## Quick demo (cost / categories / profit)
+
+See [`docs/DEMO.md`](docs/DEMO.md) for the UI walkthrough, or run:
+
+```
+bash docs/demo-script.sh
+```
+
+(with the backend already listening on port 4000).
 
 ## Team
 

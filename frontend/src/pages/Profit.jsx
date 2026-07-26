@@ -32,53 +32,87 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+const emptyReport = {
+  revenue: 0,
+  cogs: 0,
+  grossProfit: 0,
+  marginPercent: 0,
+  lines: 0,
+  missingCostLines: 0,
+  salesCount: 0,
+  breakdown: [],
+};
+
 export default function Profit() {
-  const [sales, setSales] = useState([]);
+  const [report, setReport] = useState(emptyReport);
   const [products, setProducts] = useState([]);
   const [period, setPeriod] = useState("monthly");
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState("api");
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    Promise.all([api.get("/sales"), api.get("/products")])
-      .then(([salesRes, productsRes]) => {
-        setSales(Array.isArray(salesRes.data) ? salesRes.data : []);
+
+    async function load() {
+      try {
+        const [profitRes, productsRes] = await Promise.all([
+          api.get("/reports/profit", { params: { period } }),
+          api.get("/products"),
+        ]);
+        if (!active) return;
+        setReport(profitRes.data || emptyReport);
         setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+        setSource("api");
         setError("");
-      })
-      .catch(() => {
-        setSales([]);
-        setProducts([]);
-        setError(
-          "Couldn't load sales yet. Profit needs recorded sales. You can still set cost prices in Inventory."
-        );
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      } catch {
+        try {
+          const [salesRes, productsRes] = await Promise.all([
+            api.get("/sales"),
+            api.get("/products"),
+          ]);
+          if (!active) return;
+          const list = Array.isArray(productsRes.data) ? productsRes.data : [];
+          const withCost = list.map((p) => ({ ...p, cost_price: getProductCost(p) }));
+          setProducts(withCost);
+          setReport(
+            buildProfitReport(
+              Array.isArray(salesRes.data) ? salesRes.data : [],
+              withCost,
+              period
+            )
+          );
+          setSource("client");
+          setError("");
+        } catch {
+          if (!active) return;
+          setReport(emptyReport);
+          setProducts([]);
+          setError(
+            "Couldn't load profit yet. Record sales and set cost prices in Inventory."
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
 
-  const productsWithCost = useMemo(
-    () =>
-      products.map((p) => ({
-        ...p,
-        cost_price: getProductCost(p),
-      })),
-    [products]
-  );
-
-  const report = useMemo(
-    () => buildProfitReport(sales, productsWithCost, period),
-    [sales, productsWithCost, period]
-  );
+    load();
+    return () => {
+      active = false;
+    };
+  }, [period]);
 
   const filteredBreakdown = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return report.breakdown;
-    return report.breakdown.filter((row) => String(row.label).toLowerCase().includes(q));
+    const rows = Array.isArray(report.breakdown) ? report.breakdown : [];
+    if (!q) return rows;
+    return rows.filter((row) => String(row.label).toLowerCase().includes(q));
   }, [report.breakdown, search]);
 
-  const costsSet = productsWithCost.filter((p) => Number(p.cost_price) > 0).length;
+  const costsSet = products.filter((p) => Number(getProductCost(p)) > 0).length;
 
   function exportProfit() {
     downloadCsv(
@@ -86,9 +120,9 @@ export default function Profit() {
       ["period", "revenue", "cogs", "gross_profit", "sales_count"],
       filteredBreakdown.map((row) => [
         row.label,
-        row.revenue.toFixed(2),
-        row.cogs.toFixed(2),
-        row.profit.toFixed(2),
+        Number(row.revenue).toFixed(2),
+        Number(row.cogs).toFixed(2),
+        Number(row.profit).toFixed(2),
         row.salesCount,
       ])
     );
@@ -114,12 +148,17 @@ export default function Profit() {
             Gross profit tracker
           </h2>
           <p className="muted">
-            Frontend preview · {costsSet}/{products.length} products have cost price ·{" "}
-            {report.salesCount} sales loaded
+            {source === "api" ? "Live from API" : "Client fallback"} · {costsSet}/
+            {products.length} products have cost price · {report.salesCount} sales
           </p>
         </div>
         <div className="inv-actions">
-          <button type="button" className="btn btn--ghost" onClick={exportProfit} disabled={!filteredBreakdown.length}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={exportProfit}
+            disabled={!filteredBreakdown.length}
+          >
             <Download size={16} strokeWidth={1.75} />
             Export CSV
           </button>
@@ -148,8 +187,8 @@ export default function Profit() {
         <div className="alert alert--warning" role="status" style={{ marginBottom: 14 }}>
           <TriangleAlert size={18} strokeWidth={1.75} />
           <span>
-            {report.missingCostLines} sold line(s) have no cost price. Set <strong>Cost price</strong> in
-            Inventory for accurate profit.
+            {report.missingCostLines} sold line(s) have no cost price. Set{" "}
+            <strong>Cost price</strong> in Inventory for accurate profit.
           </span>
         </div>
       )}
@@ -171,7 +210,7 @@ export default function Profit() {
         </article>
         <article className="inv-stat">
           <p className="inv-stat__label">Margin</p>
-          <p className="inv-stat__value">{report.marginPercent.toFixed(1)}%</p>
+          <p className="inv-stat__value">{Number(report.marginPercent || 0).toFixed(1)}%</p>
         </article>
       </section>
 
@@ -185,8 +224,19 @@ export default function Profit() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={filteredBreakdown}>
                   <CartesianGrid vertical={false} stroke="#e4ddd0" />
-                  <XAxis dataKey="label" tick={{ fill: "#7a736c", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={(v) => `₵${v}`} tick={{ fill: "#7a736c", fontSize: 12 }} axisLine={false} tickLine={false} width={56} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: "#7a736c", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `₵${v}`}
+                    tick={{ fill: "#7a736c", fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={56}
+                  />
                   <Tooltip formatter={(value) => formatCedi(value)} />
                   <Bar dataKey="profit" name="Gross profit" fill="#1d1612" radius={[4, 4, 0, 0]} />
                 </BarChart>

@@ -38,9 +38,29 @@ router.post("/", async (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(422).json({ message: "items must be a non-empty array" });
   }
+  if (items.length > 200) {
+    return res.status(422).json({ message: "Too many line items in one sale" });
+  }
+
+  const normalized = [];
+  for (const item of items) {
+    const product_id = Number(item?.product_id);
+    const quantity = Number(item?.quantity);
+    if (!Number.isInteger(product_id) || product_id <= 0) {
+      return res.status(422).json({ message: "Each item needs a valid product_id" });
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 100000) {
+      return res.status(422).json({ message: "Each item needs a valid quantity" });
+    }
+    normalized.push({ product_id, quantity });
+  }
 
   try {
-    const sale = await data.createSale({ user_id: req.user.id, items, client_created_at });
+    const sale = await data.createSale({
+      user_id: req.user.id,
+      items: normalized,
+      client_created_at,
+    });
     res.status(201).json(sale);
   } catch (err) {
     const status = err.status || 500;
