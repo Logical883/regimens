@@ -91,7 +91,7 @@ export default function Profit() {
           setReport(emptyReport);
           setProducts([]);
           setError(
-            "Couldn't load profit yet. Record sales and set cost prices in Inventory."
+            "Couldn't load profit yet. Set cost prices in Inventory; profit appears when sales data is available."
           );
         }
       } finally {
@@ -244,7 +244,7 @@ export default function Profit() {
             </div>
             {!filteredBreakdown.length && (
               <p className="muted" style={{ marginTop: 8 }}>
-                No sales in this view yet. Record sales, then set cost prices on products.
+                No sales in this view yet. Profit will show once sales exist in the database.
               </p>
             )}
           </section>
