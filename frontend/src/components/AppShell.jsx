@@ -11,6 +11,7 @@ import {
   Menu,
   Package,
   Search,
+  Settings,
   ShoppingCart,
   Tag,
   TriangleAlert,
@@ -30,6 +31,7 @@ const NAV = [
   { to: "/orders", label: "Orders", icon: ShoppingCart, badgeKey: "orders" },
   { to: "/reports", label: "Reports", icon: ChartColumn },
   { to: "/profit", label: "Profit", icon: Wallet },
+  { to: "/settings", label: "Settings", icon: Settings },
   { to: "/backup", label: "Backup", icon: DatabaseBackup, ownerOnly: true },
 ];
 

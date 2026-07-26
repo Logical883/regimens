@@ -109,6 +109,44 @@ async function findUserById(id) {
   return result.rows[0] || null;
 }
 
+async function updateUserProfile(id, { name, username }) {
+  const result = await pool.query(
+    `UPDATE users
+     SET name = COALESCE($2, name),
+         username = COALESCE($3, username)
+     WHERE id = $1
+     RETURNING id, name, username, role`,
+    [id, name ?? null, username ?? null]
+  );
+  return result.rows[0] || null;
+}
+
+async function changeUserPassword(id, passwordHash) {
+  const result = await pool.query(
+    "UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING id",
+    [id, passwordHash]
+  );
+  return result.rows.length > 0;
+}
+
+async function listStaffUsers() {
+  const result = await pool.query(
+    `SELECT id, name, username, role, created_at
+     FROM users ORDER BY role DESC, name ASC`
+  );
+  return result.rows;
+}
+
+async function createStaffUser({ name, username, password_hash, role }) {
+  const result = await pool.query(
+    `INSERT INTO users (name, username, password_hash, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, name, username, role`,
+    [name, username, password_hash, role]
+  );
+  return result.rows[0];
+}
+
 // ---- Products ----
 async function listProducts({ search, lowStock } = {}) {
   const conditions = [];
@@ -495,6 +533,10 @@ module.exports = {
   mode: "postgres",
   findUserByUsername,
   findUserById,
+  updateUserProfile,
+  changeUserPassword,
+  listStaffUsers,
+  createStaffUser,
   listProducts,
   getProduct,
   createProduct,

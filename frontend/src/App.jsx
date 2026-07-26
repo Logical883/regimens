@@ -13,6 +13,7 @@ import Reports from "./pages/Reports";
 import Backup from "./pages/Backup";
 import { flushPendingSales } from "./offline/sync";
 import Profit from "./pages/Profit";
+import OwnerSettings from "./pages/OwnerSettings";
 
 export default function App() {
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="/backup" element={<ProtectedRoute><Backup /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><OwnerSettings /></ProtectedRoute>} />
           </Routes>
         </BrowserRouter>
       </CategoryProvider>

@@ -8,8 +8,21 @@ function readCachedUser() {
   return raw ? JSON.parse(raw) : null;
 }
 
+function activeStore() {
+  if (localStorage.getItem("regimens_token")) return localStorage;
+  if (sessionStorage.getItem("regimens_token")) return sessionStorage;
+  return localStorage;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readCachedUser());
+
+  function persistSession(token, nextUser) {
+    const store = activeStore();
+    store.setItem("regimens_token", token);
+    store.setItem("regimens_user", JSON.stringify(nextUser));
+    setUser(nextUser);
+  }
 
   async function login(username, password, keepSignedIn = true) {
     const { data } = await api.post("/auth/login", { username, password });
@@ -31,8 +44,22 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  async function updateProfile({ name, username }) {
+    const { data } = await api.patch("/auth/profile", { name, username });
+    persistSession(data.token, data.user);
+    return data.user;
+  }
+
+  async function changePassword({ currentPassword, newPassword }) {
+    await api.post("/auth/change-password", { currentPassword, newPassword });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{ user, login, logout, updateProfile, changePassword }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 

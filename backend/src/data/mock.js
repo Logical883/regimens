@@ -166,7 +166,62 @@ async function findUserByUsername(username) {
 }
 
 async function findUserById(id) {
-  return state.users.find((u) => u.id === Number(id)) || null;
+  const user = state.users.find((u) => u.id === Number(id));
+  if (!user) return null;
+  return { id: user.id, name: user.name, username: user.username, role: user.role };
+}
+
+async function updateUserProfile(id, { name, username }) {
+  const user = state.users.find((u) => u.id === Number(id));
+  if (!user) return null;
+  if (username && username !== user.username) {
+    const taken = state.users.some(
+      (u) => u.id !== Number(id) && u.username.toLowerCase() === username.toLowerCase()
+    );
+    if (taken) {
+      const err = new Error("Username already in use");
+      err.code = "23505";
+      throw err;
+    }
+    user.username = username;
+  }
+  if (name !== undefined) user.name = name;
+  return { id: user.id, name: user.name, username: user.username, role: user.role };
+}
+
+async function changeUserPassword(id, passwordHash) {
+  const user = state.users.find((u) => u.id === Number(id));
+  if (!user) return false;
+  user.password_hash = passwordHash;
+  return true;
+}
+
+async function listStaffUsers() {
+  return state.users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    username: u.username,
+    role: u.role,
+    created_at: u.created_at,
+  }));
+}
+
+async function createStaffUser({ name, username, password_hash, role }) {
+  if (state.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+    const err = new Error("Username already in use");
+    err.code = "23505";
+    throw err;
+  }
+  const user = {
+    id: state.nextIds.users++,
+    name,
+    username,
+    password_hash,
+    role,
+    created_at: new Date().toISOString(),
+  };
+  state.users.push(user);
+  return { id: user.id, name: user.name, username: user.username, role: user.role };
 }
 
 async function listProducts({ search, lowStock } = {}) {
@@ -426,6 +481,10 @@ module.exports = {
   mode: "mock",
   findUserByUsername,
   findUserById,
+  updateUserProfile,
+  changeUserPassword,
+  listStaffUsers,
+  createStaffUser,
   listProducts,
   getProduct,
   createProduct,
