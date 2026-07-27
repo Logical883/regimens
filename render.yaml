@@ -13,8 +13,9 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm install --prefix backend && npm install --prefix database
-    startCommand: node scripts/render-start.js
+    # Keep these identical to package.json render:* scripts so either works
+    buildCommand: npm run render:build
+    startCommand: npm run render:start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
@@ -33,6 +34,5 @@ services:
         value: 12h
       - key: DATABASE_SSL
         value: "true"
-      # Set in dashboard after Vercel deploy, e.g. https://regimens.vercel.app
       - key: CORS_ORIGIN
         sync: false

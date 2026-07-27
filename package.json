@@ -14,7 +14,7 @@
     "start": "npm start --prefix backend",
     "migrate": "npm run migrate --prefix database",
     "seed": "npm run seed --prefix database",
-    "deploy:prepare": "npm run install:all && npm run build",
+    "deploy:prepare": "npm install --prefix backend && npm install --prefix database",
     "render:build": "npm run deploy:prepare",
     "render:start": "node scripts/render-start.js"
   }
