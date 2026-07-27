@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { CategoryProvider } from "./context/CategoryContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SyncStatus from "./components/SyncStatus";
+import KeepAlive from "./components/KeepAlive";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ProductManagement from "./pages/ProductManagement";
@@ -27,6 +28,7 @@ export default function App() {
     <AuthProvider>
       <CategoryProvider>
         <BrowserRouter>
+          <KeepAlive />
           <SyncStatus />
           <Routes>
             <Route path="/login" element={<Login />} />

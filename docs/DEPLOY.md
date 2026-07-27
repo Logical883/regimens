@@ -71,5 +71,8 @@ Redeploy the API. Then hard-refresh the Vercel site.
 ## Notes
 
 - Free Render sleeps when idle; first API call after idle can take ~30–60s.
+- While the Vercel app is open, the frontend pings `/api/health` every 30 seconds to reduce spin-down during demos.
+- For keep-alive with **no browser open**, use a free monitor (e.g. [UptimeRobot](https://uptimerobot.com)) hitting  
+  `https://regimens-api.onrender.com/api/health` every 5 minutes.
 - Never commit `.env` files. Set secrets only in Vercel/Render dashboards.
 - Local dev: keep using Vite proxy (`VITE_API_URL=/api`) + backend on port 4000.
