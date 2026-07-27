@@ -1,93 +1,75 @@
-# Deploy Regimens
+# Deploy Regimens (split hosting)
 
-Recommended path: **one Render web service** that runs the API and serves the built React app, plus a **Render Postgres** database.
+**Frontend → Vercel**  
+**API + Postgres → Render**
 
-## Prerequisites
+---
 
-1. Code pushed to GitHub (`Logical883/regimens`)
-2. A free [Render](https://render.com) account
-3. Change the demo password after first login (`owner` / `owner1234` → **Settings → Security**)
+## 1) Render (API + database)
 
-## Option A — Blueprint (fastest)
+1. Push latest `main` to GitHub.
+2. In [Render](https://render.com): **New → Blueprint** → select `Logical883/regimens`  
+   (or update the existing blueprint / recreate the web service).
+3. This creates:
+   - Postgres: `regimens-db`
+   - Web service: `regimens-api` (API only — no Vite build)
+4. After deploy, copy the API URL, e.g. `https://regimens-api.onrender.com`
+5. Confirm health: `https://YOUR-API.onrender.com/api/health`
 
-1. Push the latest `main` (includes `render.yaml`).
-2. In Render: **New → Blueprint** → select the `regimens` repo.
-3. Apply the blueprint. It creates:
-   - Postgres (`regimens-db`)
-   - Web service (`regimens`) that builds frontend, migrates, seeds, and starts the API
-4. Optional env on the web service:
-   - `CORS_ORIGIN` = your public URL, e.g. `https://regimens.onrender.com`  
-     (can leave empty for same-origin SPA)
-5. Wait for the first deploy (free tier can take a few minutes cold-start).
-6. Open `https://YOUR-SERVICE.onrender.com` and log in.
+Optional env on `regimens-api`:
 
-## Option B — Manual setup
+| Key | Value |
+|-----|--------|
+| `CORS_ORIGIN` | Your Vercel URL, e.g. `https://regimens.vercel.app` (no trailing slash) |
 
-### 1. Postgres
+Leave `CORS_ORIGIN` empty until Vercel is live, then set it and **Manual Deploy** once.
 
-Render → **New → PostgreSQL** → create `regimens-db` → copy **Internal Database URL**.
+---
 
-### 2. Web service
+## 2) Vercel (frontend)
 
-Render → **New → Web Service** → connect the GitHub repo.
+1. Go to [vercel.com](https://vercel.com) → **Add New Project** → import `Logical883/regimens`
+2. Configure:
 
 | Setting | Value |
 |--------|--------|
-| Root Directory | *(leave empty — repo root)* |
-| Runtime | Node |
-| Build Command | `npm run deploy:prepare && npm install --prefix database` |
-| Start Command | `npm run migrate --prefix database && npm run seed --prefix database && npm start --prefix backend` |
-| Health Check Path | `/api/health` |
+| **Root Directory** | `frontend` |
+| **Framework Preset** | Vite |
+| **Build Command** | `npm run build` |
+| **Output Directory** | `dist` |
 
-Environment variables:
+3. Environment variable (Production):
+
+| Key | Value |
+|-----|--------|
+| `VITE_API_URL` | `https://YOUR-API.onrender.com/api` |
+
+4. Deploy. Open the Vercel URL and log in with `owner` / `owner1234`, then change the password in **Settings → Security**.
+
+---
+
+## 3) Connect CORS
+
+On Render `regimens-api` → Environment:
 
 ```
-NODE_ENV=production
-USE_MOCK_DB=false
-DATABASE_URL=<Internal Database URL from Postgres>
-DATABASE_SSL=true
-JWT_SECRET=<paste a long random string, 32+ chars>
-JWT_EXPIRES_IN=12h
-CORS_ORIGIN=https://YOUR-SERVICE.onrender.com
+CORS_ORIGIN=https://YOUR-APP.vercel.app
 ```
 
-### 3. Deploy
+Redeploy the API. Then hard-refresh the Vercel site.
 
-Click **Deploy**. When healthy, visit the service URL.
+---
 
-## Local check before deploy
+## Checklist
 
-```powershell
-cd frontend
-npm run build
-cd ..\backend
-$env:NODE_ENV="production"
-npm start
-```
-
-Open `http://localhost:4000` — you should see the app (API + built UI).
-
-## After go-live checklist
-
-- [ ] Login works
-- [ ] Inventory / categories persist after refresh
-- [ ] Settings → change owner password
-- [ ] Backup (owner) create works
-- [ ] `/api/health` returns `{"status":"ok","mode":"postgres"}`
+- [ ] `/api/health` on Render returns `{"status":"ok","mode":"postgres"}`
+- [ ] Vercel site loads login page
+- [ ] Login works (no CORS errors in browser console)
+- [ ] Inventory persists after refresh
+- [ ] Owner password changed
 
 ## Notes
 
-- **Free Render** spins down after idle; first request may be slow (~30–60s).
-- Seed is idempotent (safe to re-run); it recreates demo data only if missing.
-- Never commit `.env` files. Secrets live only in the host dashboard.
-- Sale UI was removed; Profit needs sales rows in the DB (seed or API) to show numbers.
-
-## Alternatives
-
-| Host | Good for |
-|------|----------|
-| **Railway** | Similar all-in-one Node + Postgres |
-| **Vercel (frontend) + Render (API)** | Split deploy; set `VITE_API_URL` and `CORS_ORIGIN` |
-| **VPS (DigitalOcean, etc.)** | Full control + Nginx + HTTPS |
-
-If you want Railway or a split Vercel setup instead, say which one and we can add those configs next.
+- Free Render sleeps when idle; first API call after idle can take ~30–60s.
+- Never commit `.env` files. Set secrets only in Vercel/Render dashboards.
+- Local dev: keep using Vite proxy (`VITE_API_URL=/api`) + backend on port 4000.

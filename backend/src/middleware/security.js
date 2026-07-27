@@ -31,20 +31,21 @@ function applySecurity(app) {
     })
   );
 
-  // Same-origin SPA deploy: leave CORS_ORIGIN empty or set to the public site URL.
+  // Production (Vercel + Render): set CORS_ORIGIN to the Vercel site URL.
   // Local Vite: CORS_ORIGIN=http://localhost:5173
+  // Empty allow-list: reflect Origin (convenient for first boot; tighten in production).
   const corsOrigin = process.env.CORS_ORIGIN || "";
   const allowed = corsOrigin
     .split(",")
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (!origin) return next();
 
-    // No allow-list configured → reflect request origin only in non-strict local/dev,
-    // or allow when deploying a same-host SPA that still sends Origin.
+    const normalizedOrigin = origin.replace(/\/$/, "");
+
     if (allowed.length === 0) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
@@ -55,11 +56,14 @@ function applySecurity(app) {
       return next();
     }
 
-    if (!allowed.includes(origin) && !allowed.includes("*")) {
+    if (!allowed.includes(normalizedOrigin) && !allowed.includes("*")) {
       return res.status(403).json({ message: "Origin not allowed" });
     }
 
-    res.setHeader("Access-Control-Allow-Origin", allowed.includes("*") ? "*" : origin);
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      allowed.includes("*") ? "*" : origin
+    );
     res.setHeader("Vary", "Origin");
     if (!allowed.includes("*")) {
       res.setHeader("Access-Control-Allow-Credentials", "true");

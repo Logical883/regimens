@@ -1,5 +1,4 @@
-# Render Blueprint — https://render.com
-# Creates a Postgres database + one web service that serves API + React build.
+# Render Blueprint — API + Postgres only (frontend on Vercel)
 
 databases:
   - name: regimens-db
@@ -9,13 +8,13 @@ databases:
 
 services:
   - type: web
-    name: regimens
+    name: regimens-api
     runtime: node
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm run render:build
-    startCommand: npm run render:start
+    buildCommand: npm install --prefix backend && npm install --prefix database
+    startCommand: node scripts/render-start.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
@@ -34,3 +33,6 @@ services:
         value: 12h
       - key: DATABASE_SSL
         value: "true"
+      # Set in dashboard after Vercel deploy, e.g. https://regimens.vercel.app
+      - key: CORS_ORIGIN
+        sync: false
