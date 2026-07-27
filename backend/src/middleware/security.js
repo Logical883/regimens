@@ -31,32 +31,36 @@ function applySecurity(app) {
     })
   );
 
-  // Production (Vercel + Render): set CORS_ORIGIN to the Vercel site URL.
-  // Local Vite: CORS_ORIGIN=http://localhost:5173
-  // Empty allow-list: reflect Origin (convenient for first boot; tighten in production).
+  // Production (Vercel + Render): set CORS_ORIGIN to your site URL(s).
+  // Supports exact origins and "*.vercel.app".
+  // Local Vite: include http://localhost:5173
+  // Empty allow-list: reflect Origin (first-boot convenience).
   const corsOrigin = process.env.CORS_ORIGIN || "";
   const allowed = corsOrigin
     .split(",")
     .map((s) => s.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
+  function isAllowedOrigin(origin) {
+    const normalized = String(origin || "").replace(/\/$/, "");
+    if (!normalized) return false;
+    if (allowed.length === 0) return true;
+    if (allowed.includes("*")) return true;
+    if (allowed.includes(normalized)) return true;
+    if (
+      allowed.includes("*.vercel.app") &&
+      /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalized)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (!origin) return next();
 
-    const normalizedOrigin = origin.replace(/\/$/, "");
-
-    if (allowed.length === 0) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      if (req.method === "OPTIONS") return res.sendStatus(204);
-      return next();
-    }
-
-    if (!allowed.includes(normalizedOrigin) && !allowed.includes("*")) {
+    if (!isAllowedOrigin(origin)) {
       return res.status(403).json({ message: "Origin not allowed" });
     }
 

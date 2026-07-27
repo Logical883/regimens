@@ -34,5 +34,6 @@ services:
         value: 12h
       - key: DATABASE_SSL
         value: "true"
+      # Exact Vercel URL and/or *.vercel.app
       - key: CORS_ORIGIN
-        sync: false
+        value: "*.vercel.app,http://localhost:5173"

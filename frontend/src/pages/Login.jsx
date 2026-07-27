@@ -22,7 +22,12 @@ export default function Login() {
       await login(username, password, keepSignedIn);
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't log in. Check your connection and try again.");
+      setError(
+        err.response?.data?.message ||
+          (err.code === "ERR_NETWORK" || !err.response
+            ? "Couldn't reach the API. Check VITE_API_URL on Vercel and CORS_ORIGIN on Render."
+            : "Couldn't log in. Check your connection and try again.")
+      );
     } finally {
       setLoading(false);
     }
