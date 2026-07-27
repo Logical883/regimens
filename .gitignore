@@ -13,6 +13,7 @@ dist/
 build/
 **/dist/
 **/build/
+backend/public/
 
 # Logs
 *.log

@@ -43,15 +43,24 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/backup", backupRoutes);
 app.use("/api/sync", syncRoutes);
 
-// Production: serve the built React app from ../frontend/dist
+// Prefer backend/public (copied during deploy build); fall back to frontend/dist.
+const publicPath = path.join(__dirname, "..", "public");
 const distPath = path.join(__dirname, "..", "..", "frontend", "dist");
-const hasFrontend = fs.existsSync(path.join(distPath, "index.html"));
+const staticRoot = fs.existsSync(path.join(publicPath, "index.html"))
+  ? publicPath
+  : fs.existsSync(path.join(distPath, "index.html"))
+    ? distPath
+    : null;
 
-if (hasFrontend) {
-  app.use(express.static(distPath, { index: false, maxAge: isProd ? "1h" : 0 }));
-  app.get("*", (req, res, next) => {
+if (staticRoot) {
+  app.use(express.static(staticRoot, { index: false, maxAge: isProd ? "1h" : 0 }));
+  // Avoid Express wildcard "*" (breaks on newer path-to-regexp)
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
     if (req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(distPath, "index.html"));
+    res.sendFile(path.join(staticRoot, "index.html"), (err) => {
+      if (err) next(err);
+    });
   });
 }
 
@@ -67,5 +76,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Regimens backend listening on http://0.0.0.0:${PORT}`);
-  if (hasFrontend) console.log("Serving frontend from frontend/dist");
+  if (staticRoot) console.log(`Serving frontend from ${staticRoot}`);
 });

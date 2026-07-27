@@ -3,12 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "description": "Regimens inventory system — monorepo scripts for local and deploy.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "install:all": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix database",
-    "build": "npm install --prefix frontend && npm run build --prefix frontend",
+    "build:frontend": "npm install --prefix frontend && npm run build --prefix frontend",
+    "copy:frontend": "node scripts/copy-frontend.js",
+    "build": "npm run build:frontend && npm run copy:frontend",
     "start": "npm start --prefix backend",
     "migrate": "npm run migrate --prefix database",
     "seed": "npm run seed --prefix database",
-    "deploy:prepare": "npm run install:all && npm run build"
+    "deploy:prepare": "npm run install:all && npm run build",
+    "render:build": "npm run deploy:prepare",
+    "render:start": "node scripts/render-start.js"
   }
 }

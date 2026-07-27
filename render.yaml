@@ -14,10 +14,12 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm run deploy:prepare && npm install --prefix database
-    startCommand: npm run migrate --prefix database && npm run seed --prefix database && npm start --prefix backend
+    buildCommand: npm run render:build
+    startCommand: npm run render:start
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
       - key: USE_MOCK_DB
@@ -30,7 +32,5 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 12h
-      - key: CORS_ORIGIN
-        sync: false
       - key: DATABASE_SSL
         value: "true"
