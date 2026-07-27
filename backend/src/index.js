@@ -1,5 +1,7 @@
 // src/index.js
 require("dotenv").config();
+const path = require("path");
+const fs = require("fs");
 const express = require("express");
 const morgan = require("morgan");
 const { assertSecureEnv, applySecurity, sanitizeError } = require("./middleware/security");
@@ -15,13 +17,22 @@ const backupRoutes = require("./routes/backup");
 const syncRoutes = require("./routes/sync");
 
 const app = express();
+const isProd = process.env.NODE_ENV === "production";
+
+// Needed behind Render / Railway / Nginx so rate limits see real client IPs
+app.set("trust proxy", 1);
 
 const { loginLimiter } = applySecurity(app);
 
 app.use(express.json({ limit: "256kb" }));
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(isProd ? "combined" : "dev"));
 
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    mode: process.env.USE_MOCK_DB === "true" ? "mock" : "postgres",
+  });
+});
 
 app.use("/api/auth/login", loginLimiter);
 app.use("/api/auth", authRoutes);
@@ -31,6 +42,18 @@ app.use("/api/sales", salesRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/backup", backupRoutes);
 app.use("/api/sync", syncRoutes);
+
+// Production: serve the built React app from ../frontend/dist
+const distPath = path.join(__dirname, "..", "..", "frontend", "dist");
+const hasFrontend = fs.existsSync(path.join(distPath, "index.html"));
+
+if (hasFrontend) {
+  app.use(express.static(distPath, { index: false, maxAge: isProd ? "1h" : 0 }));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
 
 app.use((req, res) => {
   res.status(404).json({ message: "Not found" });
@@ -42,6 +65,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Regimens backend listening on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Regimens backend listening on http://0.0.0.0:${PORT}`);
+  if (hasFrontend) console.log("Serving frontend from frontend/dist");
 });

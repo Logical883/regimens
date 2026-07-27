@@ -3,14 +3,33 @@
 // Usage: node migrate.js   (run from the database/ folder, or via `npm run migrate` in backend/)
 
 require("dotenv").config();
+// Also load backend/.env when migrate is run from the monorepo on a host.
+require("dotenv").config({ path: require("path").join(__dirname, "..", "backend", ".env") });
+
 const fs = require("fs");
 const path = require("path");
 const { Client } = require("pg");
 
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 
+function needsSsl(connectionString = "") {
+  if (process.env.DATABASE_SSL === "true") return true;
+  if (process.env.DATABASE_SSL === "false") return false;
+  return /render\.com|railway\.app|amazonaws\.com|neon\.tech|supabase\.co/i.test(
+    connectionString
+  );
+}
+
 async function run() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  const client = new Client({
+    connectionString,
+    ssl: needsSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
+  });
   await client.connect();
 
   await client.query(`

@@ -3,8 +3,18 @@
 // Usage: node seed.js
 
 require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, "..", "backend", ".env") });
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const { Client } = require("pg");
+
+function needsSsl(connectionString = "") {
+  if (process.env.DATABASE_SSL === "true") return true;
+  if (process.env.DATABASE_SSL === "false") return false;
+  return /render\.com|railway\.app|amazonaws\.com|neon\.tech|supabase\.co/i.test(
+    connectionString
+  );
+}
 
 const CATEGORIES = [
   ["Notebooks", "Exercise books, notepads, and notebooks", "notebook,exercise book,note,notepad"],
@@ -29,7 +39,13 @@ const PRODUCTS = [
 ];
 
 async function run() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL is not set");
+
+  const client = new Client({
+    connectionString,
+    ssl: needsSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
+  });
   await client.connect();
 
   const passwordHash = await bcrypt.hash("owner1234", 10);

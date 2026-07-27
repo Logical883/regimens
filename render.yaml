@@ -1,0 +1,36 @@
+# Render Blueprint — https://render.com
+# Creates a Postgres database + one web service that serves API + React build.
+
+databases:
+  - name: regimens-db
+    plan: free
+    databaseName: regimens
+    user: regimens
+
+services:
+  - type: web
+    name: regimens
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: npm run deploy:prepare && npm install --prefix database
+    startCommand: npm run migrate --prefix database && npm run seed --prefix database && npm start --prefix backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: USE_MOCK_DB
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: regimens-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
