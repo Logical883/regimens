@@ -91,7 +91,7 @@ export default function NewSale() {
               );
             })}
             {products.length === 0 && (
-              <li className="muted" style={{ padding: 16 }}>
+              <li className="muted" style={{ padding: "16px 22px" }}>
                 No products found.
               </li>
             )}
@@ -104,7 +104,7 @@ export default function NewSale() {
             <ShoppingBag size={18} strokeWidth={1.75} />
           </header>
           {cart.length === 0 ? (
-            <p className="muted" style={{ padding: "8px 0" }}>
+            <p className="muted" style={{ padding: "12px 0" }}>
               Cart is empty. Add products to continue.
             </p>
           ) : (

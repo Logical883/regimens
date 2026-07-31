@@ -36,7 +36,7 @@ export default function ConfirmSale() {
   if (cart.length === 0) {
     return (
       <AppShell breadcrumb="Sales / Confirm">
-        <section className="po-panel" style={{ maxWidth: 520 }}>
+        <section className="po-panel sale-panel sale-panel--body" style={{ maxWidth: 520 }}>
           <h2 className="dash-card__title">Your cart is empty</h2>
           <p className="muted" style={{ margin: "8px 0 16px" }}>
             Add products before confirming a sale.
@@ -71,7 +71,7 @@ export default function ConfirmSale() {
         </div>
       )}
 
-      <section className="po-panel">
+      <section className="po-panel sale-panel">
         <header className="po-panel__head">
           <h2 className="po-panel__title">Line items</h2>
           <span className="muted">
