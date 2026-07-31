@@ -219,7 +219,11 @@ export default function Profit() {
       {!loading && (
         <>
           <section className="reports-card" style={{ marginBottom: 14 }}>
-            <h2 className="reports-card__title">Profit by {period.replace("ly", "")}</h2>
+            <h2 className="reports-card__title">
+              Profit by{" "}
+              {{ daily: "day", weekly: "week", monthly: "month", yearly: "year" }[period] ||
+                period}
+            </h2>
             <div className="reports-chart">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={filteredBreakdown}>
