@@ -16,13 +16,13 @@
 4. After deploy, copy the API URL, e.g. `https://regimens-api.onrender.com`
 5. Confirm health: `https://YOUR-API.onrender.com/api/health`
 
-Optional env on `regimens-api`:
+Required env on `regimens-api` once the frontend is on Vercel:
 
 | Key | Value |
 |-----|--------|
-| `CORS_ORIGIN` | Your Vercel URL, e.g. `https://regimens.vercel.app` (no trailing slash) |
+| `CORS_ORIGIN` | `*.vercel.app` (covers production + preview URLs; no trailing slash) |
 
-Leave `CORS_ORIGIN` empty until Vercel is live, then set it and **Manual Deploy** once.
+If login shows **Origin not allowed**, this value is missing or wrong — update it and **Manual Deploy** the API.
 
 ---
 
@@ -50,13 +50,15 @@ Leave `CORS_ORIGIN` empty until Vercel is live, then set it and **Manual Deploy*
 
 ## 3) Connect CORS
 
-On Render `regimens-api` → Environment:
+On Render `regimens-api` → **Environment**:
 
 ```
-CORS_ORIGIN=https://YOUR-APP.vercel.app
+CORS_ORIGIN=*.vercel.app
 ```
 
-Redeploy the API. Then hard-refresh the Vercel site.
+(Optional: also add your exact URL, comma-separated, e.g. `*.vercel.app,https://regimens.vercel.app`.)
+
+Save → **Manual Deploy** → hard-refresh the Vercel site. Localhost is always allowed by the API.
 
 ---
 

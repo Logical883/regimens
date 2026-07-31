@@ -1,12 +1,16 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { SaleProvider } from "./context/SaleContext";
 import { CategoryProvider } from "./context/CategoryContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SyncStatus from "./components/SyncStatus";
 import KeepAlive from "./components/KeepAlive";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import NewSale from "./pages/NewSale";
+import ConfirmSale from "./pages/ConfirmSale";
+import SaleSuccess from "./pages/SaleSuccess";
 import ProductManagement from "./pages/ProductManagement";
 import Categories from "./pages/Categories";
 import Orders from "./pages/Orders";
@@ -26,23 +30,28 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <CategoryProvider>
-        <BrowserRouter>
-          <KeepAlive />
-          <SyncStatus />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-            <Route path="/products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
-            <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/backup" element={<ProtectedRoute><Backup /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><OwnerSettings /></ProtectedRoute>} />
-          </Routes>
-        </BrowserRouter>
-      </CategoryProvider>
+      <SaleProvider>
+        <CategoryProvider>
+          <BrowserRouter>
+            <KeepAlive />
+            <SyncStatus />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
+              <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+              <Route path="/sale/new" element={<ProtectedRoute><NewSale /></ProtectedRoute>} />
+              <Route path="/sale/confirm" element={<ProtectedRoute><ConfirmSale /></ProtectedRoute>} />
+              <Route path="/sale/success" element={<ProtectedRoute><SaleSuccess /></ProtectedRoute>} />
+              <Route path="/products" element={<ProtectedRoute><ProductManagement /></ProtectedRoute>} />
+              <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/backup" element={<ProtectedRoute><Backup /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><OwnerSettings /></ProtectedRoute>} />
+            </Routes>
+          </BrowserRouter>
+        </CategoryProvider>
+      </SaleProvider>
     </AuthProvider>
   );
 }

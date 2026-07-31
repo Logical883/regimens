@@ -33,7 +33,7 @@ function applySecurity(app) {
 
   // Production (Vercel + Render): set CORS_ORIGIN to your site URL(s).
   // Supports exact origins and "*.vercel.app".
-  // Local Vite: include http://localhost:5173
+  // Local Vite (localhost / 127.0.0.1, any port) is always allowed.
   // Empty allow-list: reflect Origin (first-boot convenience).
   const corsOrigin = process.env.CORS_ORIGIN || "";
   const allowed = corsOrigin
@@ -41,16 +41,22 @@ function applySecurity(app) {
     .map((s) => s.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
+  function isLocalDevOrigin(origin) {
+    return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+  }
+
+  function isVercelOrigin(origin) {
+    return /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
+  }
+
   function isAllowedOrigin(origin) {
     const normalized = String(origin || "").replace(/\/$/, "");
     if (!normalized) return false;
+    if (isLocalDevOrigin(normalized)) return true;
     if (allowed.length === 0) return true;
     if (allowed.includes("*")) return true;
     if (allowed.includes(normalized)) return true;
-    if (
-      allowed.includes("*.vercel.app") &&
-      /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalized)
-    ) {
+    if (allowed.includes("*.vercel.app") && isVercelOrigin(normalized)) {
       return true;
     }
     return false;
