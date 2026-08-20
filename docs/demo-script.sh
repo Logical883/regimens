@@ -29,12 +29,20 @@ curl -sS "$BASE/api/categories" -H "$AUTH"
 echo
 
 echo
-echo "== Products (note category + cost_price) =="
+echo "== Products (note category, cost_price, stock_layers) =="
 curl -sS "$BASE/api/products" -H "$AUTH"
 echo
 
 echo
-echo "== Record a sale (stamps unit_cost from product cost_price) =="
+echo "== Restock product 1 at a new cost (opens a FIFO layer) =="
+curl -sS -X PUT "$BASE/api/products/1" \
+  -H "$AUTH" \
+  -H "Content-Type: application/json" \
+  -d '{"quantity":55,"cost_price":4,"unit_price":6}'
+echo
+
+echo
+echo "== Record a sale (FIFO cost + current sell price) =="
 SALE=$(curl -sS -X POST "$BASE/api/sales" \
   -H "$AUTH" \
   -H "Content-Type: application/json" \

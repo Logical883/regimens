@@ -1,5 +1,11 @@
 // src/data/mock.js
 const bcrypt = require("bcryptjs");
+const {
+  activeLayers,
+  applyQuantityDelta,
+  consumeFifo,
+  ensureCoverage,
+} = require("./stockLayers");
 
 const state = {
   users: [],
@@ -8,7 +14,16 @@ const state = {
   saleItems: [],
   categories: [],
   backups: [],
-  nextIds: { users: 1, products: 1, sales: 1, saleItems: 1, categories: 1, backups: 1 },
+  layers: [],
+  nextIds: {
+    users: 1,
+    products: 1,
+    sales: 1,
+    saleItems: 1,
+    categories: 1,
+    backups: 1,
+    layers: 1,
+  },
 };
 
 const DEFAULT_CATEGORIES = [
@@ -56,7 +71,8 @@ function seed() {
   ];
 
   for (const [name, sku, quantity, unit_price, min_stock_level, category, cost_price] of products) {
-    state.products.push({
+    const created_at = new Date().toISOString();
+    const product = {
       id: state.nextIds.products++,
       name,
       sku,
@@ -65,10 +81,36 @@ function seed() {
       min_stock_level,
       category,
       cost_price,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+      created_at,
+      updated_at: created_at,
+    };
+    state.products.push(product);
+    if (quantity > 0) {
+      state.layers.push({
+        id: state.nextIds.layers++,
+        product_id: product.id,
+        unit_cost: cost_price,
+        unit_price,
+        quantity_remaining: quantity,
+        created_at,
+      });
+    }
   }
+}
+
+function productLayers(productId) {
+  return state.layers.filter((layer) => layer.product_id === Number(productId));
+}
+
+function setProductLayers(productId, nextLayers) {
+  state.layers = state.layers
+    .filter((layer) => layer.product_id !== Number(productId))
+    .concat(nextLayers);
+}
+
+function withLayers(product) {
+  if (!product) return null;
+  return { ...product, stock_layers: activeLayers(productLayers(product.id)) };
 }
 
 seed();
@@ -233,11 +275,11 @@ async function listProducts({ search, lowStock } = {}) {
   if (lowStock === "true" || lowStock === true) {
     rows = rows.filter((p) => p.quantity < p.min_stock_level);
   }
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+  return rows.sort((a, b) => a.name.localeCompare(b.name)).map(withLayers);
 }
 
 async function getProduct(id) {
-  return state.products.find((p) => p.id === Number(id)) || null;
+  return withLayers(state.products.find((p) => p.id === Number(id)) || null);
 }
 
 async function createProduct({ name, sku, quantity, unit_price, min_stock_level, category, cost_price }) {
@@ -259,23 +301,55 @@ async function createProduct({ name, sku, quantity, unit_price, min_stock_level,
     updated_at: new Date().toISOString(),
   };
   state.products.push(product);
-  return product;
+  if ((product.quantity || 0) > 0) {
+    state.layers.push({
+      id: state.nextIds.layers++,
+      product_id: product.id,
+      unit_cost: product.cost_price,
+      unit_price: product.unit_price,
+      quantity_remaining: product.quantity,
+      created_at: product.created_at,
+    });
+  }
+  return withLayers(product);
 }
 
 async function updateProduct(id, fields) {
   const product = state.products.find((p) => p.id === Number(id));
   if (!product) return null;
+  const oldQty = Number(product.quantity) || 0;
   const next = { ...fields };
   if (next.cost_price !== undefined) next.cost_price = Number(next.cost_price) || 0;
+  if (next.unit_price !== undefined) next.unit_price = Number(next.unit_price) || 0;
+  if (next.quantity !== undefined) next.quantity = Number(next.quantity) || 0;
   Object.assign(product, next, { updated_at: new Date().toISOString() });
-  return product;
+
+  if (next.quantity !== undefined) {
+    const delta = (Number(product.quantity) || 0) - oldQty;
+    const updated = applyQuantityDelta(productLayers(product.id), {
+      product_id: product.id,
+      delta,
+      unit_cost: product.cost_price,
+      unit_price: product.unit_price,
+      id: state.nextIds.layers++,
+      created_at: new Date().toISOString(),
+      fallbackCost: product.cost_price,
+    });
+    setProductLayers(product.id, updated);
+  }
+  return withLayers(product);
 }
 
 async function deleteProduct(id) {
   const index = state.products.findIndex((p) => p.id === Number(id));
   if (index === -1) return false;
   state.products.splice(index, 1);
+  state.layers = state.layers.filter((layer) => layer.product_id !== Number(id));
   return true;
+}
+
+async function listStockLayers() {
+  return [...state.layers];
 }
 
 async function listCategories() {
@@ -379,7 +453,17 @@ async function createSale({ user_id, items, client_created_at }) {
       );
     }
     const unit_price = Number(product.unit_price) || 0;
-    const unit_cost = Number(product.cost_price) || 0;
+    const covered = ensureCoverage(productLayers(product.id), {
+      product_id: product.id,
+      quantity: product.quantity,
+      unit_cost: product.cost_price,
+      unit_price,
+      id: state.nextIds.layers++,
+      created_at: new Date().toISOString(),
+    });
+    const consumed = consumeFifo(covered, quantity, product.cost_price);
+    setProductLayers(product.id, consumed.layers);
+    const unit_cost = consumed.weightedUnitCost;
     const subtotal = unit_price * quantity;
     totalAmount += subtotal;
     lineItems.push({
@@ -453,7 +537,16 @@ async function restoreFromSnapshot(snapshot) {
   state.sales = [];
   state.saleItems = [];
   state.backups = [];
-  state.nextIds = { users: 1, products: 1, sales: 1, saleItems: 1, categories: 1, backups: 1 };
+  state.layers = [];
+  state.nextIds = {
+    users: 1,
+    products: 1,
+    sales: 1,
+    saleItems: 1,
+    categories: 1,
+    backups: 1,
+    layers: 1,
+  };
 
   for (const user of snapshot.users || []) {
     state.users.push({ ...user });
@@ -464,8 +557,33 @@ async function restoreFromSnapshot(snapshot) {
     state.nextIds.categories = Math.max(state.nextIds.categories, Number(category.id) + 1);
   }
   for (const product of snapshot.products || []) {
-    state.products.push({ ...product });
+    const { stock_layers, ...row } = product;
+    state.products.push(row);
     state.nextIds.products = Math.max(state.nextIds.products, Number(product.id) + 1);
+    if (Array.isArray(stock_layers) && !snapshot.stock_layers) {
+      for (const layer of stock_layers) {
+        state.layers.push({ ...layer, product_id: Number(product.id) });
+        if (layer.id) state.nextIds.layers = Math.max(state.nextIds.layers, Number(layer.id) + 1);
+      }
+    }
+  }
+  for (const layer of snapshot.stock_layers || []) {
+    state.layers.push({ ...layer });
+    if (layer.id) state.nextIds.layers = Math.max(state.nextIds.layers, Number(layer.id) + 1);
+  }
+  if ((snapshot.stock_layers || []).length === 0 && state.layers.length === 0) {
+    for (const product of state.products) {
+      if ((product.quantity || 0) > 0) {
+        state.layers.push({
+          id: state.nextIds.layers++,
+          product_id: product.id,
+          unit_cost: product.cost_price,
+          unit_price: product.unit_price,
+          quantity_remaining: product.quantity,
+          created_at: product.created_at || new Date().toISOString(),
+        });
+      }
+    }
   }
   for (const sale of snapshot.sales || []) {
     state.sales.push({ ...sale });
@@ -490,6 +608,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  listStockLayers,
   listCategories,
   getCategory,
   createCategory,

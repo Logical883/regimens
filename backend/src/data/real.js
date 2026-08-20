@@ -7,6 +7,8 @@ const pool = require("../db");
 const PRODUCT_COLUMNS =
   "id, name, sku, quantity, unit_price, min_stock_level, category, cost_price, created_at, updated_at";
 const SALE_ITEM_COLUMNS = "id, product_id, quantity, unit_price, unit_cost, subtotal";
+const LAYER_COLUMNS =
+  "id, product_id, unit_cost, unit_price, quantity_remaining, created_at";
 
 function startOfDay(d) {
   const x = new Date(d);
@@ -96,6 +98,94 @@ function buildProfitFromSales(sales, period) {
   };
 }
 
+function roundMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+async function layersByProductIds(ids, executor = pool) {
+  if (!ids.length) return new Map();
+  const result = await executor.query(
+    `SELECT ${LAYER_COLUMNS}
+     FROM product_stock_layers
+     WHERE product_id = ANY($1::int[]) AND quantity_remaining > 0
+     ORDER BY created_at ASC, id ASC`,
+    [ids]
+  );
+  const map = new Map();
+  for (const row of result.rows) {
+    const key = Number(row.product_id);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
+  }
+  return map;
+}
+
+function withLayers(product, layers = []) {
+  if (!product) return null;
+  return { ...product, stock_layers: layers };
+}
+
+async function insertLayer(executor, { product_id, unit_cost, unit_price, quantity }) {
+  const qty = Number(quantity) || 0;
+  if (qty <= 0) return;
+  await executor.query(
+    `INSERT INTO product_stock_layers (product_id, unit_cost, unit_price, quantity_remaining)
+     VALUES ($1, $2, $3, $4)`,
+    [product_id, roundMoney(unit_cost), roundMoney(unit_price), qty]
+  );
+}
+
+async function consumeLayers(executor, productId, quantity, fallbackCost) {
+  const qtyNeeded = Number(quantity) || 0;
+  const { rows } = await executor.query(
+    `SELECT id, unit_cost, quantity_remaining
+     FROM product_stock_layers
+     WHERE product_id = $1 AND quantity_remaining > 0
+     ORDER BY created_at ASC, id ASC
+     FOR UPDATE`,
+    [productId]
+  );
+
+  let remaining = qtyNeeded;
+  let costSum = 0;
+  let taken = 0;
+
+  for (const layer of rows) {
+    if (remaining <= 0) break;
+    const have = Number(layer.quantity_remaining) || 0;
+    const take = Math.min(have, remaining);
+    await executor.query(
+      `UPDATE product_stock_layers SET quantity_remaining = quantity_remaining - $1 WHERE id = $2`,
+      [take, layer.id]
+    );
+    costSum += take * (Number(layer.unit_cost) || 0);
+    taken += take;
+    remaining -= take;
+  }
+
+  if (remaining > 0) {
+    costSum += remaining * (Number(fallbackCost) || 0);
+    taken += remaining;
+  }
+
+  return taken > 0 ? roundMoney(costSum / taken) : 0;
+}
+
+async function ensureLayerCoverage(executor, product) {
+  const covered = await executor.query(
+    `SELECT COALESCE(SUM(quantity_remaining), 0)::int AS covered
+     FROM product_stock_layers WHERE product_id = $1`,
+    [product.id]
+  );
+  const gap = (Number(product.quantity) || 0) - (Number(covered.rows[0].covered) || 0);
+  await insertLayer(executor, {
+    product_id: product.id,
+    unit_cost: product.cost_price,
+    unit_price: product.unit_price,
+    quantity: gap,
+  });
+}
+
 // ---- Auth ----
 async function findUserByUsername(username) {
   const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
@@ -163,11 +253,21 @@ async function listProducts({ search, lowStock } = {}) {
     `SELECT ${PRODUCT_COLUMNS} FROM products ${where} ORDER BY name ASC`,
     params
   );
-  return result.rows;
+  const map = await layersByProductIds(result.rows.map((row) => row.id));
+  return result.rows.map((row) => withLayers(row, map.get(Number(row.id)) || []));
 }
 async function getProduct(id) {
   const result = await pool.query(`SELECT ${PRODUCT_COLUMNS} FROM products WHERE id = $1`, [id]);
-  return result.rows[0] || null;
+  const product = result.rows[0];
+  if (!product) return null;
+  const map = await layersByProductIds([product.id]);
+  return withLayers(product, map.get(Number(product.id)) || []);
+}
+async function listStockLayers() {
+  const result = await pool.query(
+    `SELECT ${LAYER_COLUMNS} FROM product_stock_layers ORDER BY product_id, created_at, id`
+  );
+  return result.rows;
 }
 async function createProduct({
   name,
@@ -178,20 +278,38 @@ async function createProduct({
   category,
   cost_price,
 }) {
-  const result = await pool.query(
-    `INSERT INTO products (name, sku, quantity, unit_price, min_stock_level, category, cost_price)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${PRODUCT_COLUMNS}`,
-    [
-      name,
-      sku || null,
-      quantity || 0,
-      unit_price || 0,
-      min_stock_level || 0,
-      category || null,
-      cost_price != null ? Number(cost_price) || 0 : 0,
-    ]
-  );
-  return result.rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `INSERT INTO products (name, sku, quantity, unit_price, min_stock_level, category, cost_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${PRODUCT_COLUMNS}`,
+      [
+        name,
+        sku || null,
+        quantity || 0,
+        unit_price || 0,
+        min_stock_level || 0,
+        category || null,
+        cost_price != null ? Number(cost_price) || 0 : 0,
+      ]
+    );
+    const product = result.rows[0];
+    await insertLayer(client, {
+      product_id: product.id,
+      unit_cost: product.cost_price,
+      unit_price: product.unit_price,
+      quantity: product.quantity,
+    });
+    await client.query("COMMIT");
+    const map = await layersByProductIds([product.id]);
+    return withLayers(product, map.get(Number(product.id)) || []);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 async function updateProduct(id, fields) {
   const allowed = new Set([
@@ -206,18 +324,59 @@ async function updateProduct(id, fields) {
   const updates = {};
   for (const [key, value] of Object.entries(fields)) {
     if (!allowed.has(key)) continue;
-    updates[key] = key === "cost_price" ? Number(value) || 0 : value;
+    if (key === "cost_price" || key === "unit_price") {
+      updates[key] = Number(value) || 0;
+    } else if (key === "quantity" || key === "min_stock_level") {
+      updates[key] = Number(value) || 0;
+    } else {
+      updates[key] = value;
+    }
   }
   const keys = Object.keys(updates);
   if (keys.length === 0) return getProduct(id);
-  const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
-  const params = [...keys.map((k) => updates[k]), id];
-  const result = await pool.query(
-    `UPDATE products SET ${setClause}, updated_at = now() WHERE id = $${keys.length + 1}
-     RETURNING ${PRODUCT_COLUMNS}`,
-    params
-  );
-  return result.rows[0] || null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      `SELECT ${PRODUCT_COLUMNS} FROM products WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    const product = existing.rows[0];
+    if (!product) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const oldQty = Number(product.quantity) || 0;
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+    const params = [...keys.map((k) => updates[k]), id];
+    const result = await client.query(
+      `UPDATE products SET ${setClause}, updated_at = now() WHERE id = $${keys.length + 1}
+       RETURNING ${PRODUCT_COLUMNS}`,
+      params
+    );
+    const next = result.rows[0];
+    const delta = (Number(next.quantity) || 0) - oldQty;
+    if (delta > 0) {
+      await insertLayer(client, {
+        product_id: next.id,
+        unit_cost: next.cost_price,
+        unit_price: next.unit_price,
+        quantity: delta,
+      });
+    } else if (delta < 0) {
+      await consumeLayers(client, next.id, -delta, next.cost_price);
+    }
+    await client.query("COMMIT");
+    const map = await layersByProductIds([next.id]);
+    return withLayers(next, map.get(Number(next.id)) || []);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 async function deleteProduct(id) {
   const result = await pool.query("DELETE FROM products WHERE id = $1 RETURNING id", [id]);
@@ -343,8 +502,9 @@ async function createSale({ user_id, items, client_created_at }) {
           { status: 409 }
         );
       }
+      await ensureLayerCoverage(client, product);
       const unit_price = Number(product.unit_price) || 0;
-      const unit_cost = Number(product.cost_price) || 0;
+      const unit_cost = await consumeLayers(client, product_id, quantity, product.cost_price);
       const subtotal = unit_price * quantity;
       totalAmount += subtotal;
       lineItems.push({ product_id, quantity, unit_price, unit_cost, subtotal });
@@ -417,7 +577,7 @@ async function restoreFromSnapshot(snapshot) {
   try {
     await client.query("BEGIN");
     await client.query(
-      "TRUNCATE sale_items, sales, products, categories, backups, users RESTART IDENTITY CASCADE"
+      "TRUNCATE sale_items, sales, product_stock_layers, products, categories, backups, users RESTART IDENTITY CASCADE"
     );
 
     for (const user of snapshot.users || []) {
@@ -461,6 +621,57 @@ async function restoreFromSnapshot(snapshot) {
           product.updated_at,
         ]
       );
+    }
+
+    const snapshotLayers = snapshot.stock_layers || [];
+    if (snapshotLayers.length > 0) {
+      for (const layer of snapshotLayers) {
+        await client.query(
+          `INSERT INTO product_stock_layers
+            (id, product_id, unit_cost, unit_price, quantity_remaining, created_at)
+           VALUES ($1,$2,$3,$4,$5,COALESCE($6, now()))`,
+          [
+            layer.id,
+            layer.product_id,
+            layer.unit_cost,
+            layer.unit_price,
+            layer.quantity_remaining,
+            layer.created_at,
+          ]
+        );
+      }
+    } else {
+      for (const product of snapshot.products || []) {
+        if (Array.isArray(product.stock_layers) && product.stock_layers.length) {
+          for (const layer of product.stock_layers) {
+            await client.query(
+              `INSERT INTO product_stock_layers
+                (product_id, unit_cost, unit_price, quantity_remaining, created_at)
+               VALUES ($1,$2,$3,$4,COALESCE($5, now()))`,
+              [
+                product.id,
+                layer.unit_cost,
+                layer.unit_price,
+                layer.quantity_remaining,
+                layer.created_at,
+              ]
+            );
+          }
+        } else if ((Number(product.quantity) || 0) > 0) {
+          await client.query(
+            `INSERT INTO product_stock_layers
+              (product_id, unit_cost, unit_price, quantity_remaining, created_at)
+             VALUES ($1,$2,$3,$4,COALESCE($5, now()))`,
+            [
+              product.id,
+              product.cost_price != null ? product.cost_price : 0,
+              product.unit_price,
+              product.quantity,
+              product.created_at,
+            ]
+          );
+        }
+      }
     }
 
     for (const sale of snapshot.sales || []) {
@@ -519,6 +730,9 @@ async function restoreFromSnapshot(snapshot) {
     await client.query(
       `SELECT setval(pg_get_serial_sequence('sale_items','id'), COALESCE((SELECT MAX(id) FROM sale_items), 1))`
     );
+    await client.query(
+      `SELECT setval(pg_get_serial_sequence('product_stock_layers','id'), COALESCE((SELECT MAX(id) FROM product_stock_layers), 1))`
+    );
 
     await client.query("COMMIT");
   } catch (err) {
@@ -542,6 +756,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  listStockLayers,
   listCategories,
   getCategory,
   createCategory,

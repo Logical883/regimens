@@ -75,10 +75,17 @@ async function run() {
   for (const [name, sku, quantity, unit_price, min_stock_level, category, cost_price] of PRODUCTS) {
     const exists = await client.query("SELECT id FROM products WHERE sku = $1", [sku]);
     if (exists.rows.length === 0) {
-      await client.query(
+      const inserted = await client.query(
         `INSERT INTO products (name, sku, quantity, unit_price, min_stock_level, category, cost_price)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, quantity, unit_price, cost_price, created_at`,
         [name, sku, quantity, unit_price, min_stock_level, category, cost_price]
+      );
+      const product = inserted.rows[0];
+      await client.query(
+        `INSERT INTO product_stock_layers (product_id, unit_cost, unit_price, quantity_remaining, created_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [product.id, product.cost_price, product.unit_price, product.quantity, product.created_at]
       );
     } else {
       await client.query(
@@ -91,6 +98,16 @@ async function run() {
       );
     }
   }
+
+  await client.query(`
+    INSERT INTO product_stock_layers (product_id, unit_cost, unit_price, quantity_remaining, created_at)
+    SELECT id, cost_price, unit_price, quantity, created_at
+    FROM products
+    WHERE quantity > 0
+      AND NOT EXISTS (
+        SELECT 1 FROM product_stock_layers l WHERE l.product_id = products.id
+      )
+  `);
   console.log(`Seeded ${PRODUCTS.length} sample products (skipping any that already exist).`);
 
   await client.end();

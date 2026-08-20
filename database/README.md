@@ -23,7 +23,7 @@ Owners: Francis, Raymond
    npm run migrate
    ```
    This creates the core tables (`users`, `products`, `sales`, `sale_items`, `backups`,
-   `categories`) plus cost/category columns, and tracks what's been applied in a
+   `categories`, `product_stock_layers`) plus cost/category columns, and tracks what's been applied in a
    `schema_migrations` table, so it's safe to run again after pulling someone else's new
    migration file — it only applies what's new.
 5. (Optional but recommended for local dev) Seed some sample data:
@@ -56,6 +56,7 @@ Then run `npm run migrate` again — it will pick up and apply only the new file
 | `categories` table (`name`, `description`, `keywords`) | `006_add_categories.sql` |
 | `products.category`, `products.cost_price` | `007_add_cost_category_unit_cost.sql` |
 | `sale_items.unit_cost` (stamped at sale time for profit) | `007_add_cost_category_unit_cost.sql` |
+| `product_stock_layers` (FIFO lots: leftover stock keeps its arrival cost) | `008_create_product_stock_layers.sql` |
 
 **Before renaming or dropping a column**, flag it in the team chat first — the backend
 code in `../backend/src/routes` assumes the exact column names in `../docs/ERD_Regimens.docx`.

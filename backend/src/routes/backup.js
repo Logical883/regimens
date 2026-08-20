@@ -28,11 +28,12 @@ function resolveSafeBackupPath(relativePath) {
 }
 
 async function buildSnapshot() {
-  const [users, products, categories, sales] = await Promise.all([
+  const [users, products, categories, sales, stock_layers] = await Promise.all([
     data.listUsersForBackup ? data.listUsersForBackup() : [],
     data.listProducts({}),
     data.listCategories(),
     data.listSales({}),
+    data.listStockLayers ? data.listStockLayers() : [],
   ]);
 
   const sale_items = [];
@@ -43,13 +44,14 @@ async function buildSnapshot() {
   }
 
   return {
-    version: 2,
+    version: 3,
     created_at: new Date().toISOString(),
     users,
-    products,
+    products: products.map(({ stock_layers: _layers, ...product }) => product),
     categories,
     sales: sales.map(({ items, ...sale }) => sale),
     sale_items,
+    stock_layers,
   };
 }
 

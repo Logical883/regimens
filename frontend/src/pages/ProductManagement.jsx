@@ -571,6 +571,23 @@ export default function ProductManagement() {
                 </div>
               </div>
 
+              {editingId && (products.find((p) => p.id === editingId)?.stock_layers || []).length > 0 && (
+                <div className="field field--full">
+                  <p className="label">On-hand cost layers (oldest sold first)</p>
+                  <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--muted, #64748b)" }}>
+                    Raising sell price applies to the next sale. Leftover stock still uses the cost
+                    from when it arrived.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                    {(products.find((p) => p.id === editingId)?.stock_layers || []).map((layer) => (
+                      <li key={layer.id}>
+                        {layer.quantity_remaining} pcs at cost {formatCedi(layer.unit_cost)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="field">
                 <label className="label" htmlFor="min_stock_level">
                   Min stock
