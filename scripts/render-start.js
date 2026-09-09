@@ -20,18 +20,23 @@ function run(label, command, args, cwd, { fatal = true } = {}) {
   }
 }
 
-if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL is missing. Link the Render Postgres database to this service.");
-  process.exit(1);
-}
-
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).length < 32) {
   console.error("JWT_SECRET must be set to a strong value (32+ chars) in Render env.");
   process.exit(1);
 }
 
-// database package needs its deps (pg, dotenv, bcryptjs)
-run("database npm install", "npm", ["install"], databaseRoot);
-run("migrate", "node", ["migrate.js"], databaseRoot);
-run("seed", "node", ["seeds/seed.js"], databaseRoot, { fatal: false });
-run("start", "npm", ["start"], backendRoot);
+const useMock = process.env.USE_MOCK_DB === "true";
+
+if (useMock) {
+  console.log("Starting API in STANDALONE mock mode (no Postgres). Data resets when the instance sleeps or restarts.");
+  run("start", "npm", ["start"], backendRoot);
+} else {
+  if (!process.env.DATABASE_URL) {
+    console.error("DATABASE_URL is missing. Link Postgres, or set USE_MOCK_DB=true for a demo-only API.");
+    process.exit(1);
+  }
+  run("database npm install", "npm", ["install"], databaseRoot);
+  run("migrate", "node", ["migrate.js"], databaseRoot);
+  run("seed", "node", ["seeds/seed.js"], databaseRoot, { fatal: false });
+  run("start", "npm", ["start"], backendRoot);
+}

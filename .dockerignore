@@ -1,0 +1,7 @@
+frontend
+docs
+.git
+**/.env
+**/node_modules
+database/backups
+*.md
