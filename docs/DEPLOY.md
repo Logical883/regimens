@@ -51,7 +51,7 @@ CORS_ORIGIN=*.vercel.app
 ```
 
 5. Create a public URL. Health: `https://YOUR-NEW-API.onrender.com/api/health` should be `{"status":"ok","mode":"postgres"}`.
-6. On **Vercel** → frontend project → `VITE_API_URL` = `https://YOUR-NEW-API.onrender.com/api` → Redeploy.
+6. On **Vercel** → Environment Variables: delete `VITE_API_URL` if it exists. Add `API_ORIGIN` = `https://YOUR-NEW-API.onrender.com` (no `/api` suffix, type **Config**). Redeploy.
 
 ### B) Demo-only, no database (uses mock data)
 
@@ -74,7 +74,7 @@ Leave `DATABASE_URL` unset. Health `mode` will be `"mock"`. Data **resets** when
 2. Add a Postgres plugin **or** paste a Neon `DATABASE_URL`.
 3. Build/start from repo root: `npm run render:build` / `npm run render:start`.
 4. Same env vars as table A. Generate a public domain.
-5. Point Vercel `VITE_API_URL` at `https://YOUR-RAILWAY-DOMAIN/api`.
+5. On Vercel set `API_ORIGIN` to `https://YOUR-RAILWAY-DOMAIN` (no `/api` suffix). Do not set `VITE_API_URL`.
 
 ---
 
@@ -111,11 +111,15 @@ If login shows **Origin not allowed**, this value is missing or wrong — update
 | **Build Command** | `npm run build` |
 | **Output Directory** | `dist` |
 
-3. Environment variable (Production):
+3. Environment variables:
 
-| Key | Value |
-|-----|--------|
-| `VITE_API_URL` | `https://YOUR-API.onrender.com/api` |
+| Key | Type on Vercel | Value |
+|-----|----------------|--------|
+| `API_ORIGIN` | **Config** or **Secret** (no `VITE_` prefix) | `https://YOUR-API.onrender.com` (no `/api` suffix) |
+
+Do **not** set `VITE_API_URL` in Vercel. The browser calls same-origin `/api`; Vercel proxies to Render.
+
+If Vercel still shows a warning on an old `VITE_API_URL`, **delete that variable**.
 
 4. Deploy. Open the Vercel URL and log in with `owner` / `owner1234`, then change the password in **Settings → Security**.
 

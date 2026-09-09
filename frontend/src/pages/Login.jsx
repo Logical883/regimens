@@ -25,7 +25,7 @@ export default function Login() {
       setError(
         err.response?.data?.message ||
           (err.code === "ERR_NETWORK" || !err.response
-            ? "Couldn't reach the API. Check VITE_API_URL on Vercel and CORS_ORIGIN on Render."
+            ? "Couldn't reach the API. On Vercel set API_ORIGIN (no VITE_ prefix) and check CORS_ORIGIN on Render."
             : "Couldn't log in. Check your connection and try again.")
       );
     } finally {
