@@ -28,7 +28,7 @@ export default function Login() {
       setError(
         apiMessage ||
           (err.code === "ERR_NETWORK" || !err.response
-            ? "Couldn't reach the API. On Vercel set API_ORIGIN (no VITE_ prefix) and check CORS_ORIGIN on Render."
+            ? "Couldn't reach the API. Local: start the backend on port 4000. Live: wait for the API to wake, and set API_ORIGIN to a running host (not the suspended regimens-api.onrender.com)."
             : "Couldn't log in. Check your connection and try again.")
       );
     } finally {
