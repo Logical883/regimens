@@ -22,8 +22,11 @@ export default function Login() {
       await login(username, password, keepSignedIn);
       navigate("/");
     } catch (err) {
-      setError(
+      const apiMessage =
         err.response?.data?.message ||
+        (typeof err.response?.data === "string" ? err.response.data.trim().split("\n")[0] : "");
+      setError(
+        apiMessage ||
           (err.code === "ERR_NETWORK" || !err.response
             ? "Couldn't reach the API. On Vercel set API_ORIGIN (no VITE_ prefix) and check CORS_ORIGIN on Render."
             : "Couldn't log in. Check your connection and try again.")

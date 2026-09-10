@@ -14,10 +14,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const incoming = req.url || "/";
-  const pathAndQuery = incoming.startsWith("/api")
-    ? incoming
-    : `/api${incoming.startsWith("/") ? incoming : `/${incoming}`}`;
+  const pathAndQuery = resolveUpstreamPath(req);
   const target = origin + pathAndQuery;
 
   const headers = {};
@@ -31,8 +28,8 @@ export default async function handler(req, res) {
   const method = req.method || "GET";
   let body;
   if (method !== "GET" && method !== "HEAD") {
-    body = await readBody(req);
-    if (body.length === 0) body = undefined;
+    body = await getBody(req);
+    if (body == null || (Buffer.isBuffer(body) && body.length === 0)) body = undefined;
   }
 
   try {
@@ -48,6 +45,34 @@ export default async function handler(req, res) {
   } catch (err) {
     res.status(502).json({ message: err.message || "Upstream API unreachable" });
   }
+}
+
+function resolveUpstreamPath(req) {
+  const rawPath = req.query?.__path;
+  const nested = Array.isArray(rawPath) ? rawPath.filter(Boolean).join("/") : String(rawPath || "");
+  const search = new URL(req.url || "/", "http://localhost").searchParams;
+  search.delete("__path");
+  const qs = search.toString();
+  const suffix = qs ? `?${qs}` : "";
+
+  if (nested) {
+    return `/api/${nested.replace(/^\/+/, "")}${suffix}`;
+  }
+
+  const incoming = (req.url || "/").split("?")[0];
+  if (incoming.startsWith("/api/") && incoming !== "/api/proxy") {
+    return incoming + suffix;
+  }
+  return `/api${suffix}`;
+}
+
+async function getBody(req) {
+  if (req.body != null && req.body !== "") {
+    if (Buffer.isBuffer(req.body)) return req.body;
+    if (typeof req.body === "string") return req.body;
+    if (typeof req.body === "object") return JSON.stringify(req.body);
+  }
+  return readBody(req);
 }
 
 function readBody(req) {
