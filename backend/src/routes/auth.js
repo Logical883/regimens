@@ -1,9 +1,24 @@
 // src/routes/auth.js
+const crypto = require("crypto");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const data = require("../data");
 const { requireAuth, requireRole } = require("../middleware/auth");
+
+function recoverySecret() {
+  const configured = String(process.env.ACCOUNT_RECOVERY_CODE || "");
+  if (configured.length >= 8) return configured;
+  // Mock/demo only so the login Forgot page can be exercised without extra env.
+  if (process.env.USE_MOCK_DB === "true") return "regimens-reset";
+  return "";
+}
+
+function secretsMatch(input, expected) {
+  const left = crypto.createHash("sha256").update(String(input)).digest();
+  const right = crypto.createHash("sha256").update(String(expected)).digest();
+  return crypto.timingSafeEqual(left, right);
+}
 
 const router = express.Router();
 
@@ -40,6 +55,46 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Something went wrong logging in" });
+  }
+});
+
+// POST /api/auth/forgot-password — shop recovery code (no email on accounts)
+router.post("/forgot-password", async (req, res) => {
+  const username = String(req.body?.username || "").trim().slice(0, 60);
+  const recoveryCode = String(req.body?.recoveryCode || "").slice(0, 200);
+  const newPassword = String(req.body?.newPassword || "").slice(0, 200);
+
+  if (!username || !recoveryCode || !newPassword) {
+    return res.status(422).json({
+      message: "username, recoveryCode, and newPassword are required",
+    });
+  }
+  if (newPassword.length < 8) {
+    return res.status(422).json({ message: "New password must be at least 8 characters" });
+  }
+
+  const expected = recoverySecret();
+  if (!expected) {
+    return res.status(503).json({
+      message: "Password reset isn't enabled. Ask the shop owner to set a recovery code, or reset it in Settings.",
+    });
+  }
+
+  try {
+    const user = await data.findUserByUsername(username);
+    const codeOk = secretsMatch(recoveryCode, expected);
+    if (!user || !codeOk) {
+      return res.status(401).json({
+        message: "Couldn't reset that password. Check the username and shop recovery code.",
+      });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await data.changeUserPassword(user.id, password_hash);
+    res.json({ message: "Password updated. You can sign in now." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Couldn't reset password" });
   }
 });
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Shield, TriangleAlert, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import BrandMark from "../components/BrandMark";
@@ -66,7 +66,7 @@ export default function Login() {
           <div className="field">
             <div className="label-row">
               <label className="label" htmlFor="password">Password</label>
-              <span className="link-quiet">Forgot?</span>
+              <Link className="link-quiet" to="/forgot">Forgot?</Link>
             </div>
             <div className="input">
               <Lock size={18} strokeWidth={1.75} />

@@ -1,0 +1,727 @@
+openapi: 3.0.3
+info:
+  title: Regimens API
+  version: "1.1.0"
+  description: |
+    REST API for the Regimens inventory and sales system
+    (Outstretched Arm Enterprise, COE 454 Team Regimens).
+
+    Base URL (local): `http://localhost:4000`
+    Base URL (production): `https://<regimens-api>.onrender.com`
+
+    Authenticated routes require header:
+    `Authorization: Bearer <jwt>`
+
+    JSON error body: `{ "message": "..." }`
+  contact:
+    name: Team Regimens
+servers:
+  - url: http://localhost:4000
+    description: Local Express
+  - url: https://regimens-api.onrender.com
+    description: Render production (example)
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Products
+  - name: Categories
+  - name: Sales
+  - name: Reports
+  - name: Backup
+  - name: Sync
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    UserPublic:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        username: { type: string }
+        role:
+          type: string
+          enum: [owner, assistant]
+        created_at: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            username: { type: string }
+            role: { type: string }
+    StockLayer:
+      type: object
+      description: Remaining on-hand lot (FIFO). Sales consume oldest first.
+      properties:
+        id: { type: integer }
+        product_id: { type: integer }
+        unit_cost: { type: number, format: double }
+        unit_price: { type: number, format: double }
+        quantity_remaining: { type: integer }
+        created_at: { type: string, format: date-time }
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        sku: { type: string, nullable: true }
+        quantity: { type: integer }
+        unit_price:
+          type: number
+          description: Current shelf (selling) price
+        min_stock_level: { type: integer }
+        category: { type: string, nullable: true }
+        cost_price:
+          type: number
+          description: Default cost for the next restock
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        stock_layers:
+          type: array
+          items: { $ref: "#/components/schemas/StockLayer" }
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        keywords: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SaleItem:
+      type: object
+      properties:
+        id: { type: integer }
+        sale_id: { type: integer }
+        product_id: { type: integer }
+        quantity: { type: integer }
+        unit_price:
+          type: number
+          description: Shelf price stamped at sale time
+        unit_cost:
+          type: number
+          description: FIFO-weighted lot cost stamped at sale time
+        subtotal: { type: number }
+    Sale:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        total_amount: { type: number }
+        sync_status:
+          type: string
+          enum: [synced, pending]
+        created_at: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SaleItem" }
+    ProfitReport:
+      type: object
+      properties:
+        revenue: { type: number }
+        cogs: { type: number }
+        grossProfit: { type: number }
+        marginPercent: { type: number }
+        lines: { type: integer }
+        missingCostLines: { type: integer }
+        salesCount: { type: integer }
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              revenue: { type: number }
+              cogs: { type: number }
+              profit: { type: number }
+              salesCount: { type: integer }
+    SalesReport:
+      type: object
+      properties:
+        totalSales: { type: integer }
+        totalRevenue: { type: number }
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string }
+              count: { type: integer }
+              revenue: { type: number }
+    BackupRecord:
+      type: object
+      properties:
+        id: { type: integer }
+        created_by: { type: integer }
+        file_path: { type: string }
+        status:
+          type: string
+          enum: [completed, failed]
+        created_at: { type: string, format: date-time }
+    SyncResult:
+      type: object
+      properties:
+        synced:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, enum: [sale, product] }
+              id: { type: integer }
+              client_created_at: { type: string }
+        conflicts:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              id: {}
+              client_created_at: { type: string }
+              reason: { type: string }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      security: []
+      summary: Liveness and data-mode probe
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  mode:
+                    type: string
+                    enum: [mock, postgres]
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Exchange username/password for JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, maxLength: 60 }
+                password: { type: string, maxLength: 200 }
+            example:
+              username: owner
+              password: owner1234
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401":
+          description: Invalid credentials (generic message)
+        "422":
+          description: Missing username or password
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Client-side logout acknowledgement (JWT is not stored server-side)
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPublic" }
+        "401":
+          description: Missing or invalid token
+        "404":
+          description: User not found
+
+  /api/auth/profile:
+    patch:
+      tags: [Auth]
+      summary: Update display name and/or username; returns a fresh JWT
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                username: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "409":
+          description: Username already in use
+        "422":
+          description: Empty or missing fields
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Password updated
+        "401":
+          description: Current password incorrect
+        "422":
+          description: Validation error
+
+  /api/auth/users:
+    get:
+      tags: [Auth]
+      summary: List users (owner only)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserPublic" }
+        "403":
+          description: Not owner
+    post:
+      tags: [Auth]
+      summary: Create owner or assistant (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, username, password]
+              properties:
+                name: { type: string }
+                username: { type: string }
+                password: { type: string, minLength: 8 }
+                role:
+                  type: string
+                  enum: [owner, assistant]
+                  default: assistant
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPublic" }
+        "409":
+          description: Username taken
+
+  /api/products:
+    get:
+      tags: [Products]
+      summary: List products (includes remaining stock_layers)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: lowStock
+          schema: { type: string, enum: ["true", "false"] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Product" }
+    post:
+      tags: [Products]
+      summary: Create product (opening quantity becomes the first stock layer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                sku: { type: string }
+                quantity: { type: integer }
+                unit_price: { type: number }
+                min_stock_level: { type: integer }
+                category: { type: string }
+                cost_price: { type: number }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "409":
+          description: SKU already in use
+
+  /api/products/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Products]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "404":
+          description: Not found
+    put:
+      tags: [Products]
+      summary: Partial update. Quantity increase opens a new FIFO layer at current cost_price.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                sku: { type: string }
+                quantity: { type: integer }
+                unit_price: { type: number }
+                min_stock_level: { type: integer }
+                category: { type: string }
+                cost_price: { type: number }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "404":
+          description: Not found
+        "422":
+          description: No updatable fields
+    delete:
+      tags: [Products]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /api/categories:
+    get:
+      tags: [Categories]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+    post:
+      tags: [Categories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                keywords: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "409":
+          description: Name in use
+
+  /api/categories/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Categories]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "404":
+          description: Not found
+    put:
+      tags: [Categories]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                keywords: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "404":
+          description: Not found
+        "409":
+          description: Name in use
+    delete:
+      tags: [Categories]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /api/sales:
+    get:
+      tags: [Sales]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Sale" }
+    post:
+      tags: [Sales]
+      summary: Record a sale. Client does not send prices; server stamps FIFO cost and current shelf price.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [product_id, quantity]
+                    properties:
+                      product_id: { type: integer }
+                      quantity: { type: integer, minimum: 1, maximum: 100000 }
+                client_created_at:
+                  type: string
+                  format: date-time
+                  description: Offline origin timestamp; sets sync_status pending
+            example:
+              items:
+                - product_id: 1
+                  quantity: 2
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sale" }
+        "404":
+          description: Product not found
+        "409":
+          description: Insufficient stock
+        "422":
+          description: Invalid items
+
+  /api/sales/{id}:
+    get:
+      tags: [Sales]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sale" }
+        "404":
+          description: Not found
+
+  /api/reports/sales:
+    get:
+      tags: [Reports]
+      summary: Revenue report (count and total_amount buckets)
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, yearly]
+            default: daily
+        - in: query
+          name: from
+          schema: { type: string }
+        - in: query
+          name: to
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalesReport" }
+
+  /api/reports/profit:
+    get:
+      tags: [Reports]
+      summary: Gross profit from stamped sale lines (revenue minus COGS)
+      parameters:
+        - in: query
+          name: period
+          required: false
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, yearly]
+            default: monthly
+        - in: query
+          name: from
+          schema: { type: string }
+        - in: query
+          name: to
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfitReport" }
+        "422":
+          description: Invalid period
+
+  /api/backup:
+    get:
+      tags: [Backup]
+      summary: List backup records (owner only)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BackupRecord" }
+        "403":
+          description: Not owner
+    post:
+      tags: [Backup]
+      summary: Create JSON snapshot (owner only). Mock stores in memory; Postgres writes database/backups/.
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupRecord" }
+
+  /api/backup/{id}/restore:
+    post:
+      tags: [Backup]
+      summary: Restore a completed snapshot (owner only). Destructive.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restore complete
+        "404":
+          description: Backup or file missing
+        "422":
+          description: Backup not completed
+
+  /api/sync:
+    post:
+      tags: [Sync]
+      summary: Replay offline queue. Last-write-wins on products (client_updated_at vs server updated_at).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sales:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    properties:
+                      client_created_at: { type: string, format: date-time }
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            product_id: { type: integer }
+                            quantity: { type: integer }
+                products:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      client_updated_at: { type: string, format: date-time }
+                      name: { type: string }
+                      sku: { type: string }
+                      quantity: { type: integer }
+                      unit_price: { type: number }
+                      min_stock_level: { type: integer }
+                      category: { type: string }
+                      cost_price: { type: number }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncResult" }

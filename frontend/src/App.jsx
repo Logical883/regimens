@@ -7,6 +7,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import SyncStatus from "./components/SyncStatus";
 import KeepAlive from "./components/KeepAlive";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import NewSale from "./pages/NewSale";
 import ConfirmSale from "./pages/ConfirmSale";
@@ -37,6 +38,7 @@ export default function App() {
             <SyncStatus />
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot" element={<ForgotPassword />} />
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/profit" element={<ProtectedRoute><Profit /></ProtectedRoute>} />
               <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />

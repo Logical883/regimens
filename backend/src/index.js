@@ -35,6 +35,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth/login", loginLimiter);
+app.use("/api/auth/forgot-password", loginLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
