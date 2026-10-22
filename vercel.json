@@ -3,6 +3,7 @@
   "framework": null,
   "installCommand": "npm run deploy:prepare",
   "buildCommand": "node scripts/vercel-api-build.js",
+  "outputDirectory": "public",
   "functions": {
     "api/index.js": {
       "maxDuration": 30,
