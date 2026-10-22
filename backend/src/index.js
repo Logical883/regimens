@@ -75,7 +75,12 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Regimens backend listening on http://0.0.0.0:${PORT}`);
-  if (staticRoot) console.log(`Serving frontend from ${staticRoot}`);
-});
+
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Regimens backend listening on http://0.0.0.0:${PORT}`);
+    if (staticRoot) console.log(`Serving frontend from ${staticRoot}`);
+  });
+}
+
+module.exports = app;

@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm run render:build"
+
+[deploy]
+startCommand = "npm run render:start"
+healthcheckPath = "/api/health"
+restartPolicyType = "ON_FAILURE"

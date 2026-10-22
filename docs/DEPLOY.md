@@ -16,7 +16,10 @@ Do **not** create extra fake accounts to dodge the limit.
 
 1. Wait until hours reset next month, **or**
 2. Deploy the API on a **teammate’s** Render account that still has hours, **or**
-3. Move the API off Render (Railway / Fly / similar) and keep Vercel for the UI.
+3. **Host the API on a second Vercel project** (recommended if Render is exhausted — you already have Vercel), **or**
+4. Railway (long-running Node, same start script as Render).
+
+**Do not use Netlify for the API.** Netlify is a static site + short serverless functions. Express needs `/api/auth`, `/api/sales`, `/api/sync`; free functions time out (~10s) and there is no always-on Node process. Keep the UI on Vercel.
 
 Do **not** use the old Blueprint (`regimens-api` + `regimens-db`) on a burned workspace. That used **two** free resources. The lighter path is **one Web Service** and Postgres on **Neon** (or mock mode for a class demo).
 
@@ -75,6 +78,38 @@ Leave `DATABASE_URL` unset. Health `mode` will be `"mock"`. Data **resets** when
 3. Build/start from repo root: `npm run render:build` / `npm run render:start`.
 4. Same env vars as table A. Generate a public domain.
 5. On Vercel set `API_ORIGIN` to `https://YOUR-RAILWAY-DOMAIN` (no `/api` suffix). Do not set `VITE_API_URL`.
+
+---
+
+## Vercel API (when Render free hours are gone)
+
+The shop UI stays on the existing Vercel project (**Root Directory = `frontend`**). Add a **second** Vercel project for Express.
+
+1. [vercel.com](https://vercel.com) → **Add New Project** → import `Logical883/regimens` again (do not overwrite the frontend project).
+2. Configure this **API** project:
+
+| Setting | Value |
+|--------|--------|
+| **Root Directory** | *(leave blank — repo root)* |
+| **Framework Preset** | Other (`vercel.json` sets `framework: null`) |
+| **Build Command** | `node scripts/vercel-api-build.js` (or leave default from `vercel.json`) |
+
+3. Environment (Production):
+
+```
+NODE_ENV=production
+USE_MOCK_DB=false
+DATABASE_URL=<Neon URL>
+DATABASE_SSL=true
+JWT_SECRET=<same 32+ secret as before, if you want existing logins>
+JWT_EXPIRES_IN=12h
+CORS_ORIGIN=*.vercel.app
+```
+
+4. Deploy. Health: `https://YOUR-API-PROJECT.vercel.app/api/health` → `{"status":"ok","mode":"postgres"}`.
+5. On the **frontend** Vercel project: `API_ORIGIN` = `https://YOUR-API-PROJECT.vercel.app` (no `/api` suffix) → Redeploy.
+
+Mock-only: `USE_MOCK_DB=true` and omit `DATABASE_URL`. On Vercel, mock memory **resets on every cold start**, so prefer Neon.
 
 ---
 

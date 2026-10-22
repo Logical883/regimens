@@ -1,0 +1,5 @@
+frontend
+docs
+*.pdf
+.cursor
+.git
